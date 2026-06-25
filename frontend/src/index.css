@@ -1,0 +1,112 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --surface-dim: #d3daef;
+    --inverse-on-surface: #edf0ff;
+    --inverse-primary: #c3c0ff;
+    --on-secondary-fixed-variant: #404754;
+    --surface: #f9f9ff;
+    --surface-container-highest: #dce2f7;
+    --surface-container-high: #e1e8fd;
+    --on-secondary: #ffffff;
+    --inverse-surface: #293040;
+    --on-error-container: #93000a;
+    --outline: #777587;
+    --surface-container-low: #f1f3ff;
+    --surface-tint: #4d44e3;
+    --surface-container: #e9edff;
+    --on-tertiary: #ffffff;
+    --tertiary: #7e3000;
+    --on-error: #ffffff;
+    --on-secondary-container: #5e6572;
+    --on-primary-fixed-variant: #3323cc;
+    --secondary-fixed-dim: #c0c7d6;
+    --primary-container: #4f46e5;
+    --primary: #3525cd;
+    --error: #ba1a1a;
+    --primary-fixed: #e2dfff;
+    --on-tertiary-fixed: #351000;
+    --on-primary-container: #dad7ff;
+    --tertiary-container: #a44100;
+    --outline-variant: #c7c4d8;
+    --background: #f9f9ff;
+    --on-surface-variant: #464555;
+    --on-background: #141b2b;
+    --surface-variant: #dce2f7;
+    --primary-fixed-dim: #c3c0ff;
+    --secondary: #585f6c;
+    --surface-bright: #f9f9ff;
+    --surface-container-lowest: #ffffff;
+    --on-secondary-fixed: #151c27;
+    --on-primary-fixed: #0f0069;
+    --on-tertiary-fixed-variant: #7b2f00;
+    --tertiary-fixed-dim: #ffb695;
+    --on-tertiary-container: #ffd2be;
+    --on-surface: #141b2b;
+    --error-container: #ffdad6;
+    --secondary-fixed: #dce2f3;
+    --tertiary-fixed: #ffdbcc;
+    --secondary-container: #dce2f3;
+    --on-primary: #ffffff;
+
+    --hardcoded-bg: #F9FAFB;
+    --hardcoded-border: #E5E7EB;
+  }
+
+  .dark {
+    --surface: #141b2b;
+    --surface-container-lowest: #1a2235;
+    --surface-container-low: #1e273c;
+    --surface-container: #232d44;
+    --surface-container-high: #29344c;
+    --surface-container-highest: #2e3a55;
+    
+    --on-surface: #e4e6ec;
+    --on-surface-variant: #a0a4b0;
+    
+    --background: #141b2b;
+    --on-background: #e4e6ec;
+    
+    --primary-container: #3525cd;
+    --on-primary-container: #e2dfff;
+    --primary: #c3c0ff;
+    --on-primary: #150066;
+    
+    --outline: #9ca3af;
+    --outline-variant: #4b5563;
+
+    --surface-variant: #374151;
+
+    --hardcoded-bg: #111827;
+    --hardcoded-border: #374151;
+  }
+
+  body {
+    background-color: var(--surface);
+    color: var(--on-surface);
+  }
+}
+
+@layer utilities {
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 4px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: var(--outline-variant);
+    border-radius: 4px;
+  }
+  .custom-scrollbar:hover::-webkit-scrollbar-thumb {
+    background: var(--outline);
+  }
+  
+  .resizer:hover {
+    background-color: var(--primary);
+    cursor: col-resize;
+  }
+}

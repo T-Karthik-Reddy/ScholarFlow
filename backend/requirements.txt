@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+httpx
+pymupdf
+google-generativeai
+sqlalchemy
+python-dotenv
+pydantic
