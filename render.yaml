@@ -1,0 +1,19 @@
+# Free-tier Render web service. Note: the free plan has no persistent disk,
+# so the SQLite metadata db (paper titles, chat history) resets on every
+# deploy/restart. That's an acceptable tradeoff here since the PDFs
+# themselves always live on the user's own machine, not the server. If you
+# upgrade to a paid plan later, add a `disk:` block mounted at /var/data and
+# set DATABASE_URL to sqlite:////var/data/db.sqlite to persist it.
+services:
+  - type: web
+    name: scholarflow-api
+    runtime: python
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false

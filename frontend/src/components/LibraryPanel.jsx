@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { getDirectoryHandle, pickDirectory, savePdf } from '../services/fsService';
-import { getPapers, getCollections, createCollection, ingestPaper, deletePaper, deleteCollection, movePaper, moveAllPapers } from '../services/api';
-import { Book, Folder, Clock, Download, Settings, Trash2, ChevronDown, ChevronRight, Plus, Pin, PinOff, FolderInput } from 'lucide-react';
+import { pickDirectory, savePdf } from '../services/fsService';
+import { getCollections, createCollection, ingestPaper, deletePaper, deleteCollection, movePaper, moveAllPapers } from '../services/api';
+import { Book, Folder, Clock, Download, Settings, Trash2, ChevronDown, ChevronRight, Plus, Pin, PinOff, FolderInput, Loader2 } from 'lucide-react';
 
-export default function LibraryPanel({ onSelectPaper, selectedPaperId, dirHandle, setDirHandle }) {
+export default function LibraryPanel({ onSelectPaper, selectedPaperId, dirHandle, onFolderPicked }) {
     const [collections, setCollections] = useState([]);
     const [arxivUrl, setArxivUrl] = useState('');
     const [loading, setLoading] = useState(false);
+    const [importError, setImportError] = useState('');
     
     // UI State
     const [expandedCollections, setExpandedCollections] = useState({});
@@ -68,14 +69,15 @@ export default function LibraryPanel({ onSelectPaper, selectedPaperId, dirHandle
             await fetchData();
         } catch (err) {
             console.error(err);
-            alert("Failed to create collection");
+            alert(err.message || "Failed to create collection");
         }
     };
 
     const handleImportClick = () => {
-        if (!arxivUrl) return;
+        if (!arxivUrl.trim() || loading) return;
+        setImportError('');
         if (collections.length === 0) {
-            alert("No collections exist. Please create one before importing.");
+            setImportError("No collections exist yet. Create one first.");
             setShowCreateForm(true);
             return;
         }
@@ -83,35 +85,37 @@ export default function LibraryPanel({ onSelectPaper, selectedPaperId, dirHandle
     };
 
     const handleConfirmImport = async () => {
-        if (!importCollectionId) {
-            alert("Please select a collection to import into.");
-            return;
-        }
+        if (!importCollectionId) return;
 
-        if (!dirHandle) {
-            const handle = await pickDirectory();
-            if (!handle) {
-                alert("Please select a directory to save PDFs.");
+        // The folder picker must run inside this click, and we keep the
+        // picked handle locally — the state update lands after this closure.
+        let currentHandle = dirHandle;
+        if (!currentHandle) {
+            try {
+                currentHandle = await pickDirectory();
+                onFolderPicked(currentHandle);
+            } catch (e) {
+                if (e?.name !== 'AbortError') console.error(e);
+                setImportError("A PDF folder is required to save the paper. Pick one to continue.");
+                setShowImportModal(false);
                 return;
             }
-            setDirHandle(handle);
         }
-        
+
         setShowImportModal(false);
         setLoading(true);
         try {
-            const data = await ingestPaper(arxivUrl, parseInt(importCollectionId));
-            const filename = `${data.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.pdf`;
-            
-            const currentHandle = dirHandle || await getDirectoryHandle();
-            await savePdf(currentHandle, filename, data.pdf_b64);
-            
+            const data = await ingestPaper(arxivUrl.trim(), parseInt(importCollectionId));
+            const saved = await savePdf(currentHandle, data.filename, data.pdf_b64);
+            if (!saved) {
+                setImportError("Paper imported, but the PDF could not be written to your folder.");
+            }
             setArxivUrl('');
             await fetchData();
             setExpandedCollections(prev => ({ ...prev, [importCollectionId]: true }));
         } catch (e) {
             console.error(e);
-            alert("Failed to import paper");
+            setImportError(e.message || "Failed to import paper.");
         } finally {
             setLoading(false);
         }
@@ -129,7 +133,7 @@ export default function LibraryPanel({ onSelectPaper, selectedPaperId, dirHandle
             }
         } catch (error) {
             console.error("Failed to delete paper", error);
-            alert("Failed to delete paper");
+            alert(error.message || "Failed to delete paper");
         }
     };
 
@@ -142,7 +146,7 @@ export default function LibraryPanel({ onSelectPaper, selectedPaperId, dirHandle
             setExpandedCollections(prev => ({ ...prev, [moveTargetColId]: true }));
         } catch (error) {
             console.error("Failed to move paper", error);
-            alert("Failed to move paper");
+            alert(error.message || "Failed to move paper");
         }
     };
 
@@ -280,18 +284,28 @@ export default function LibraryPanel({ onSelectPaper, selectedPaperId, dirHandle
                         onChange={(e) => setArxivUrl(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && handleImportClick()}
                     />
-                    <button 
+                    <button
                         onClick={handleImportClick}
                         disabled={loading}
+                        title="Import paper"
                         className="absolute right-2 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-primary transition-colors disabled:opacity-50">
-                        <Download size={16} />
+                        {loading ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
                     </button>
                 </div>
+                {loading && (
+                    <p className="text-xs text-on-surface-variant px-1">Downloading paper from arXiv…</p>
+                )}
+                {importError && (
+                    <p className="text-xs text-error px-1 flex items-start justify-between gap-2">
+                        <span>{importError}</span>
+                        <button onClick={() => setImportError('')} className="shrink-0 underline">dismiss</button>
+                    </p>
+                )}
             </div>
 
             {/* Modals overlay */}
             {(showImportModal || movingPaper || deletingCollection || bulkMovingCollection) && (
-                <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm p-4">
+                <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/20 backdrop-blur-sm p-4">
                     <div className="bg-surface rounded-lg shadow-lg border border-hardcoded-border w-full max-w-sm flex flex-col overflow-hidden">
                         
                         {/* Import Modal */}
@@ -498,14 +512,18 @@ export default function LibraryPanel({ onSelectPaper, selectedPaperId, dirHandle
 
             <div className="p-gap-md border-t border-hardcoded-border shrink-0 mt-auto bg-surface">
                 <nav className="flex flex-col gap-unit">
-                    <button 
+                    <button
                         onClick={async () => {
-                            const handle = await pickDirectory();
-                            setDirHandle(handle);
+                            try {
+                                const handle = await pickDirectory();
+                                onFolderPicked(handle);
+                            } catch (e) {
+                                if (e?.name !== 'AbortError') console.error(e);
+                            }
                         }}
                         className="w-full flex items-center gap-gap-sm px-3 py-2 rounded text-secondary hover:bg-surface-container font-label-md text-label-md transition-colors text-left"
                     >
-                        <Settings size={18} /> {dirHandle ? 'Change PDF Folder' : 'Set PDF Folder'}
+                        <Settings size={18} /> {dirHandle ? `PDF Folder: ${dirHandle.name}` : 'Set PDF Folder'}
                     </button>
                 </nav>
             </div>

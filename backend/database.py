@@ -2,16 +2,18 @@ import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 
-HOME_DIR = os.path.expanduser("~")
-DB_DIR = os.path.join(HOME_DIR, ".paperchat")
-os.makedirs(DB_DIR, exist_ok=True)
-DB_PATH = os.path.join(DB_DIR, "db.sqlite")
+# DATABASE_URL lets deployments point at a persistent disk (e.g. Render's
+# /var/data) or a real database. Locally it defaults to a dotfile in the
+# user's home directory so metadata survives across `uvicorn --reload`.
+DATABASE_URL = os.environ.get("DATABASE_URL", "")
+if not DATABASE_URL:
+    home_dir = os.path.expanduser("~")
+    db_dir = os.path.join(home_dir, ".scholarflow")
+    os.makedirs(db_dir, exist_ok=True)
+    DATABASE_URL = f"sqlite:///{os.path.join(db_dir, 'db.sqlite')}"
 
-SQLALCHEMY_DATABASE_URL = f"sqlite:///{DB_PATH}"
-
-engine = create_engine(
-    SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
-)
+connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
+engine = create_engine(DATABASE_URL, connect_args=connect_args)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()
