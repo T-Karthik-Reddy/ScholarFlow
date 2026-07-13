@@ -437,6 +437,7 @@ def chat_with_paper(
     req: ChatRequest,
     db: Session = Depends(get_db),
     x_gemini_key: str | None = Header(default=None),
+    user: models.User = Depends(auth.get_current_user)
 ):
     paper = db.query(models.Paper).filter(models.Paper.id == paper_id, models.Paper.user_id == user.id).first()
     if not paper:
@@ -559,6 +560,7 @@ def implement_paper(
     req: ImplementRequest,
     db: Session = Depends(get_db),
     x_gemini_key: str | None = Header(default=None),
+    user: models.User = Depends(auth.get_current_user)
 ):
     paper = db.query(models.Paper).filter(models.Paper.id == paper_id, models.Paper.user_id == user.id).first()
     if not paper:
