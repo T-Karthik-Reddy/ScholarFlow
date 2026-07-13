@@ -19,6 +19,7 @@ export default function App() {
     const [showSettings, setShowSettings] = useState(false);
     const [implementingPaper, setImplementingPaper] = useState(null);
     const [isAuthenticated, setIsAuthenticated] = useState(!!getAuthToken());
+    const [chatDraft, setChatDraft] = useState("");
 
     useEffect(() => {
         getStoredDirectory().then(({ handle, status }) => {
@@ -96,6 +97,7 @@ export default function App() {
                             dirHandle={grantedDirHandle}
                             onImplement={setImplementingPaper}
                             onOpenSettings={() => setShowSettings(true)}
+                            onAskAi={setChatDraft}
                         />
                     </Panel>
 
@@ -104,7 +106,12 @@ export default function App() {
                     </PanelResizeHandle>
 
                     <Panel defaultSize="25%" minSize="20%" maxSize="40%">
-                        <ChatPanel paper={selectedPaper} onOpenSettings={() => setShowSettings(true)} />
+                        <ChatPanel 
+                            paper={selectedPaper} 
+                            onOpenSettings={() => setShowSettings(true)} 
+                            chatDraft={chatDraft}
+                            onChatDraftChange={setChatDraft}
+                        />
                     </Panel>
                 </PanelGroup>
             </main>

@@ -3,12 +3,22 @@ import { getChats, sendChat } from '../services/api';
 import { Bot, User, Send, AlertTriangle } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 
-export default function ChatPanel({ paper, onOpenSettings }) {
+export default function ChatPanel({ paper, onOpenSettings, chatDraft, onChatDraftChange }) {
     const [chats, setChats] = useState([]);
     const [message, setMessage] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const messagesEndRef = useRef(null);
+
+    useEffect(() => {
+        if (chatDraft) {
+            setMessage(prev => {
+                const base = prev.trim();
+                return (base ? base + '\n\n' : '') + `> "${chatDraft}"\n\n`;
+            });
+            onChatDraftChange("");
+        }
+    }, [chatDraft, onChatDraftChange]);
 
     useEffect(() => {
         setError('');

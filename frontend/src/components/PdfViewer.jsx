@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
 import { getPdfUrl, savePdf } from '../services/fsService';
 import { fetchPaperPdf } from '../services/api';
-import { ZoomIn, ZoomOut, Maximize, ChevronUp, ChevronDown, List, FileText, Code2, DownloadCloud, Loader2 } from 'lucide-react';
+import { ZoomIn, ZoomOut, Maximize, ChevronUp, ChevronDown, List, FileText, Code2, DownloadCloud, Loader2, Sparkles } from 'lucide-react';
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
@@ -11,7 +11,7 @@ import 'react-pdf/dist/Page/TextLayer.css';
 // without depending on a CDN.
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
 
-export default function PdfViewer({ paper, dirHandle, onImplement, onOpenSettings }) {
+export default function PdfViewer({ paper, dirHandle, onImplement, onOpenSettings, onAskAi }) {
     const [numPages, setNumPages] = useState(null);
     const [pageNumber, setPageNumber] = useState(1);
     const [scale, setScale] = useState(1.0);
@@ -19,8 +19,45 @@ export default function PdfViewer({ paper, dirHandle, onImplement, onOpenSetting
     const [isContinuous, setIsContinuous] = useState(false);
     const [loadState, setLoadState] = useState('idle'); // idle | loading | ready | missing | error
     const [redownloading, setRedownloading] = useState(false);
+    const [selection, setSelection] = useState(null);
 
     const containerRef = useRef(null);
+
+    useEffect(() => {
+        const handleMouseUp = () => {
+            const sel = window.getSelection();
+            if (!sel || sel.rangeCount === 0) return;
+            const text = sel.toString().trim();
+            if (text) {
+                const range = sel.getRangeAt(0);
+                const rect = range.getBoundingClientRect();
+                // Check if the selection is inside the PDF viewer container
+                if (containerRef.current && containerRef.current.contains(range.commonAncestorContainer)) {
+                    setSelection({
+                        text,
+                        x: rect.left + rect.width / 2,
+                        y: rect.top - 10,
+                    });
+                } else {
+                    setSelection(null);
+                }
+            } else {
+                setSelection(null);
+            }
+        };
+
+        const handleMouseDown = (e) => {
+            if (e.target.closest('#ask-ai-btn')) return;
+            setSelection(null);
+        };
+
+        document.addEventListener('mouseup', handleMouseUp);
+        document.addEventListener('mousedown', handleMouseDown);
+        return () => {
+            document.removeEventListener('mouseup', handleMouseUp);
+            document.removeEventListener('mousedown', handleMouseDown);
+        };
+    }, []);
 
     // Trackpad pinch-to-zoom (browsers report pinch as wheel + ctrlKey)
     useEffect(() => {
@@ -238,6 +275,27 @@ export default function PdfViewer({ paper, dirHandle, onImplement, onOpenSetting
                     <div className="p-10 text-on-surface-variant">Loading…</div>
                 )}
             </div>
+
+            {selection && (
+                <button
+                    id="ask-ai-btn"
+                    onClick={() => {
+                        if (onAskAi) onAskAi(selection.text);
+                        setSelection(null);
+                        window.getSelection().removeAllRanges();
+                    }}
+                    style={{
+                        position: 'fixed',
+                        left: selection.x,
+                        top: selection.y,
+                        transform: 'translate(-50%, -100%)',
+                        zIndex: 1000
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-on-primary rounded-lg shadow-lg font-medium text-sm hover:bg-primary-container hover:text-on-primary-container transition-colors animate-in fade-in zoom-in duration-200"
+                >
+                    <Sparkles size={14} /> Ask AI
+                </button>
+            )}
         </section>
     );
 }
