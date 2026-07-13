@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { validateApiKey, getAvailableModels, updateAccount } from '../services/api';
 import { pickDirectory, isFsAccessSupported } from '../services/fsService';
-import { getApiKey, setApiKey, setOnboarded, getChatModel, setChatModel, getLoopModel, setLoopModel, getTemperature, setTemperature, getThinkingBudget, setThinkingBudget } from '../services/settings';
-import { KeyRound, FolderOpen, Check, ExternalLink, Loader2, Sparkles, X, Eye, EyeOff, Settings2, UserCircle, BrainCircuit, Thermometer } from 'lucide-react';
+import { getApiKey, setApiKey, setOnboarded, getChatModel, setChatModel, getLoopModel, setLoopModel, getTemperature, setTemperature, getThinkingBudget, setThinkingBudget, getThinkingLevel, setThinkingLevel } from '../services/settings';
+import { KeyRound, FolderOpen, Check, ExternalLink, Loader2, Sparkles, X, Eye, EyeOff, Settings2, UserCircle, BrainCircuit, Thermometer, Layers } from 'lucide-react';
 
 export default function SettingsModal({ mode, dirHandle, dirStatus, onFolderPicked, onClose }) {
     const isOnboarding = mode === 'onboarding';
@@ -20,6 +20,7 @@ export default function SettingsModal({ mode, dirHandle, dirStatus, onFolderPick
     const [loopModel, setLoopModelSt] = useState(getLoopModel() || 'gemini-2.5-flash');
     const [temperature, setTemperatureSt] = useState(getTemperature());
     const [thinkingBudget, setThinkingBudgetSt] = useState(getThinkingBudget());
+    const [thinkingLevel, setThinkingLevelSt] = useState(getThinkingLevel());
 
     const [editUsername, setEditUsername] = useState('');
     const [editPassword, setEditPassword] = useState('');
@@ -226,7 +227,26 @@ export default function SettingsModal({ mode, dirHandle, dirStatus, onFolderPick
                         placeholder="e.g. 1024 (0 to disable)"
                         className="w-full px-3 py-2 bg-surface-container-lowest border border-hardcoded-border rounded font-body-md text-sm outline-none text-on-surface"
                     />
-                    <span className="text-[10px] text-on-surface-variant">Requires a 'thinking' supported model (e.g. 2.0-pro). Set 0 to disable.</span>
+                    <span className="text-[10px] text-on-surface-variant">For Gemini 2.x Pro. Set 0 to disable.</span>
+                </div>
+                <div className="flex-1 flex flex-col gap-1">
+                    <label className="text-xs font-medium text-on-surface flex items-center gap-1"><Layers size={14}/> Thinking Level (Gemini 3.x)</label>
+                    <select 
+                        value={thinkingLevel} 
+                        onChange={(e) => {
+                            const val = e.target.value;
+                            setThinkingLevelSt(val);
+                            setThinkingLevel(val);
+                        }} 
+                        className="w-full px-3 py-2 bg-surface-container-lowest border border-hardcoded-border rounded font-body-md text-sm outline-none text-on-surface"
+                    >
+                        <option value="NONE">Default / Disabled</option>
+                        <option value="MINIMAL">Minimal</option>
+                        <option value="LOW">Low</option>
+                        <option value="MEDIUM">Medium</option>
+                        <option value="HIGH">High</option>
+                    </select>
+                    <span className="text-[10px] text-on-surface-variant">Replaces budget for Gemini 3 series.</span>
                 </div>
             </div>
         </div>

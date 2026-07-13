@@ -70,6 +70,46 @@ def resolve_api_key(x_gemini_key: str | None) -> str:
             detail="No Gemini API key configured. Add your key in Settings (get a free one at https://aistudio.google.com/apikey).",
         )
     return key
+def enhance_config(
+    base: genai_types.GenerateContentConfig | None,
+    model_name: str | None,
+    temp_str: str | None,
+    budget_str: str | None,
+    level_str: str | None
+) -> genai_types.GenerateContentConfig | None:
+    if temp_str is None and budget_str is None and level_str is None:
+        return base
+        
+    kwargs = {}
+    if base is not None:
+        if hasattr(base, "model_dump"):
+            kwargs = base.model_dump(exclude_unset=True)
+        elif hasattr(base, "__dict__"):
+            kwargs = {k: v for k, v in base.__dict__.items() if not k.startswith("_")}
+
+    if temp_str is not None:
+        try:
+            kwargs["temperature"] = float(temp_str)
+        except ValueError:
+            pass
+
+    is_gemini_3 = model_name and "gemini-3" in model_name.lower()
+    thinking_kwargs = {}
+    
+    if is_gemini_3 and level_str and level_str != "NONE":
+        thinking_kwargs["thinking_level"] = level_str
+    elif not is_gemini_3 and budget_str:
+        try:
+            budget = int(budget_str)
+            if budget > 0:
+                thinking_kwargs["thinking_budget"] = budget
+        except ValueError:
+            pass
+            
+    if thinking_kwargs:
+        kwargs["thinking_config"] = thinking_kwargs
+
+    return genai_types.GenerateContentConfig(**kwargs)
 
 
 def generate_text(api_key: str, prompt: str, config: genai_types.GenerateContentConfig | None = None, requested_model: str | None = None) -> str:
@@ -514,6 +554,9 @@ def chat_with_paper(
     db: Session = Depends(get_db),
     x_gemini_key: str | None = Header(default=None),
     x_gemini_chat_model: str | None = Header(default=None),
+    x_gemini_temperature: str | None = Header(default=None),
+    x_gemini_thinking_budget: str | None = Header(default=None),
+    x_gemini_thinking_level: str | None = Header(default=None),
     user: models.User = Depends(auth.get_current_user)
 ):
     paper = db.query(models.Paper).filter(models.Paper.id == paper_id, models.Paper.user_id == user.id).first()
@@ -551,9 +594,11 @@ def chat_with_paper(
         + f"User's message: {req.message}"
     )
 
+    config = enhance_config(None, x_gemini_chat_model, x_gemini_temperature, x_gemini_thinking_budget, x_gemini_thinking_level)
+
     # Generate first; only persist the exchange once we have a real answer so
     # failures don't leave orphaned or error messages in the history.
-    assistant_text = generate_text(api_key, prompt, requested_model=x_gemini_chat_model).strip()
+    assistant_text = generate_text(api_key, prompt, config=config, requested_model=x_gemini_chat_model).strip()
     
     # Strip markdown formatting if Gemini wrapped the JSON response
     if assistant_text.startswith("```json") and assistant_text.endswith("```"):
@@ -621,7 +666,7 @@ def chat_with_paper_stream(
     db.add(user_msg)
     db.commit()
     
-    config = enhance_config(None, x_gemini_temperature, x_gemini_thinking_budget)
+    config = enhance_config(None, x_gemini_chat_model, x_gemini_temperature, x_gemini_thinking_budget, x_gemini_thinking_level)
 
     def event_generator():
         try:
@@ -754,6 +799,7 @@ def implement_paper(
     x_gemini_loop_model: str | None = Header(default=None),
     x_gemini_temperature: str | None = Header(default=None),
     x_gemini_thinking_budget: str | None = Header(default=None),
+    x_gemini_thinking_level: str | None = Header(default=None),
     user: models.User = Depends(auth.get_current_user)
 ):
     paper = db.query(models.Paper).filter(models.Paper.id == paper_id, models.Paper.user_id == user.id).first()
@@ -773,8 +819,8 @@ def implement_paper(
     config = genai_types.GenerateContentConfig(response_mime_type="application/json")
     eval_config = genai_types.GenerateContentConfig()
     
-    config = enhance_config(config, x_gemini_temperature, x_gemini_thinking_budget)
-    eval_config = enhance_config(eval_config, x_gemini_temperature, x_gemini_thinking_budget)
+    config = enhance_config(config, x_gemini_loop_model, x_gemini_temperature, x_gemini_thinking_budget, x_gemini_thinking_level)
+    eval_config = enhance_config(eval_config, x_gemini_loop_model, x_gemini_temperature, x_gemini_thinking_budget, x_gemini_thinking_level)
 
     max_turns = 3
     current_turn = 1

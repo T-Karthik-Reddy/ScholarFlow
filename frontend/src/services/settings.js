@@ -81,3 +81,14 @@ export function setThinkingBudget(val) {
     if (val !== undefined && val !== null) localStorage.setItem(THINKING_BUDGET_STORAGE, val.toString());
     else localStorage.removeItem(THINKING_BUDGET_STORAGE);
 }
+
+const THINKING_LEVEL_STORAGE = 'scholarflow-thinking-level';
+
+export function getThinkingLevel() {
+    return localStorage.getItem(THINKING_LEVEL_STORAGE) || 'NONE'; // default NONE
+}
+
+export function setThinkingLevel(val) {
+    if (val && val !== 'NONE') localStorage.setItem(THINKING_LEVEL_STORAGE, val);
+    else localStorage.removeItem(THINKING_LEVEL_STORAGE);
+}

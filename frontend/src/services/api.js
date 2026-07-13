@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { getApiKey, getAuthToken, getChatModel, getLoopModel, getTemperature, getThinkingBudget } from './settings';
+import { getApiKey, getAuthToken, getChatModel, getLoopModel, getTemperature, getThinkingBudget, getThinkingLevel } from './settings';
 
 let API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
 API_BASE_URL = API_BASE_URL.replace(/\/+$/, '');
@@ -24,6 +24,9 @@ client.interceptors.request.use((config) => {
 
     const thinkingBudget = getThinkingBudget();
     if (thinkingBudget > 0) config.headers['X-Gemini-Thinking-Budget'] = thinkingBudget.toString();
+    
+    const thinkingLevel = getThinkingLevel();
+    if (thinkingLevel && thinkingLevel !== 'NONE') config.headers['X-Gemini-Thinking-Level'] = thinkingLevel;
     
     const token = getAuthToken();
     if (token) config.headers['Authorization'] = `Bearer ${token}`;
