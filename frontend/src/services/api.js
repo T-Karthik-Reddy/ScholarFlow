@@ -35,6 +35,12 @@ export const login = async (username, password) => {
 client.interceptors.response.use(
     (response) => response,
     (error) => {
+        if (error.response?.status === 401) {
+            localStorage.removeItem('scholarflow_token');
+            window.location.reload();
+            return Promise.reject(error);
+        }
+
         const detail = error.response?.data?.detail;
         if (typeof detail === 'string' && detail) {
             error.message = detail;
