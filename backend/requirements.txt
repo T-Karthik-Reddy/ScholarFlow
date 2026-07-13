@@ -6,3 +6,6 @@ google-genai
 sqlalchemy
 python-dotenv
 pydantic
+PyJWT
+passlib[bcrypt]
+python-multipart

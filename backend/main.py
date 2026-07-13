@@ -7,7 +7,7 @@ import xml.etree.ElementTree as ET
 import fitz  # PyMuPDF
 import httpx
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from google import genai
 from google.genai import errors as genai_errors
@@ -15,6 +15,10 @@ from google.genai import types as genai_types
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+
+import auth
+from fastapi.security import OAuth2PasswordRequestForm
+from datetime import timedelta
 import models
 from database import engine, get_db, SessionLocal
 
@@ -36,21 +40,6 @@ _working_model = None
 
 models.Base.metadata.create_all(bind=engine)
 
-
-def ensure_default_collection():
-    db = SessionLocal()
-    try:
-        if db.query(models.Collection).count() == 0:
-            db.add(models.Collection(
-                name="My Library",
-                description="Default collection for imported papers",
-            ))
-            db.commit()
-    finally:
-        db.close()
-
-
-ensure_default_collection()
 
 app = FastAPI(title="ScholarFlow API")
 
@@ -112,6 +101,15 @@ def generate_text(api_key: str, prompt: str, config: genai_types.GenerateContent
 # ---------------------------------------------------------------------------
 # Schemas
 # ---------------------------------------------------------------------------
+
+
+class UserCreate(BaseModel):
+    username: str
+    password: str
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
 
 class CollectionCreate(BaseModel):
     name: str
@@ -215,6 +213,52 @@ def paper_to_dict(p: models.Paper) -> dict:
     }
 
 
+
+# ---------------------------------------------------------------------------
+# Auth
+# ---------------------------------------------------------------------------
+
+@app.post("/api/register")
+def register(user_in: UserCreate, db: Session = Depends(get_db)):
+    user = db.query(models.User).filter(models.User.username == user_in.username).first()
+    if user:
+        raise HTTPException(status_code=400, detail="Username already registered")
+    
+    hashed_password = auth.get_password_hash(user_in.password)
+    db_user = models.User(username=user_in.username, hashed_password=hashed_password)
+    db.add(db_user)
+    db.commit()
+    db.refresh(db_user)
+
+    # Create default collection for the new user
+    db.add(models.Collection(
+        name="My Library",
+        description="Default collection for imported papers",
+        user_id=db_user.id
+    ))
+    db.commit()
+    
+    access_token_expires = timedelta(minutes=auth.ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = auth.create_access_token(
+        data={"sub": db_user.username}, expires_delta=access_token_expires
+    )
+    return {"access_token": access_token, "token_type": "bearer"}
+
+@app.post("/api/login")
+def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+    user = db.query(models.User).filter(models.User.username == form_data.username).first()
+    if not user or not auth.verify_password(form_data.password, user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    access_token_expires = timedelta(minutes=auth.ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = auth.create_access_token(
+        data={"sub": user.username}, expires_delta=access_token_expires
+    )
+    return {"access_token": access_token, "token_type": "bearer"}
+
 # ---------------------------------------------------------------------------
 # Settings / health
 # ---------------------------------------------------------------------------
@@ -238,13 +282,13 @@ def validate_key(req: ValidateKeyRequest):
 # ---------------------------------------------------------------------------
 
 @app.post("/api/ingest")
-async def ingest_paper(req: IngestRequest, db: Session = Depends(get_db)):
+async def ingest_paper(req: IngestRequest, db: Session = Depends(get_db), user: models.User = Depends(auth.get_current_user)):
     try:
         arxiv_id = extract_arxiv_id(req.arxiv_url)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    collection = db.query(models.Collection).filter(models.Collection.id == req.collection_id).first()
+    collection = db.query(models.Collection).filter(models.Collection.id == req.collection_id, models.Collection.user_id == user.id).first()
     if not collection:
         raise HTTPException(status_code=404, detail="Collection not found")
 
@@ -256,7 +300,7 @@ async def ingest_paper(req: IngestRequest, db: Session = Depends(get_db)):
     except Exception:
         raise HTTPException(status_code=502, detail="Downloaded file could not be parsed as a PDF.")
 
-    paper = db.query(models.Paper).filter(models.Paper.arxiv_id == arxiv_id).first()
+    paper = db.query(models.Paper).filter(models.Paper.arxiv_id == arxiv_id, models.Paper.user_id == user.id).first()
     already_existed = paper is not None
 
     if paper:
@@ -268,7 +312,7 @@ async def ingest_paper(req: IngestRequest, db: Session = Depends(get_db)):
         meta = await fetch_arxiv_metadata(arxiv_id)
         paper = models.Paper(
             arxiv_id=arxiv_id,
-            collection_id=req.collection_id,
+            collection_id=req.collection_id, user_id=user.id,
             title=meta["title"],
             authors=meta["authors"],
             year=meta["year"],
@@ -286,8 +330,8 @@ async def ingest_paper(req: IngestRequest, db: Session = Depends(get_db)):
 
 
 @app.get("/api/papers/{paper_id}/pdf")
-async def get_paper_pdf(paper_id: int, db: Session = Depends(get_db)):
-    paper = db.query(models.Paper).filter(models.Paper.id == paper_id).first()
+async def get_paper_pdf(paper_id: int, db: Session = Depends(get_db), user: models.User = Depends(auth.get_current_user)):
+    paper = db.query(models.Paper).filter(models.Paper.id == paper_id, models.Paper.user_id == user.id).first()
     if not paper:
         raise HTTPException(status_code=404, detail="Paper not found")
     pdf_bytes = await download_pdf(paper.arxiv_id)
@@ -298,11 +342,11 @@ async def get_paper_pdf(paper_id: int, db: Session = Depends(get_db)):
 
 
 @app.post("/api/collections")
-def create_collection(req: CollectionCreate, db: Session = Depends(get_db)):
+def create_collection(req: CollectionCreate, db: Session = Depends(get_db), user: models.User = Depends(auth.get_current_user)):
     name = req.name.strip()
     if not name:
         raise HTTPException(status_code=400, detail="Collection name is required")
-    collection = models.Collection(name=name, description=req.description.strip())
+    collection = models.Collection(name=name, description=req.description.strip(), user_id=user.id)
     db.add(collection)
     db.commit()
     db.refresh(collection)
@@ -310,8 +354,8 @@ def create_collection(req: CollectionCreate, db: Session = Depends(get_db)):
 
 
 @app.get("/api/collections")
-def get_collections(db: Session = Depends(get_db)):
-    collections = db.query(models.Collection).order_by(models.Collection.created_at.desc()).all()
+def get_collections(db: Session = Depends(get_db), user: models.User = Depends(auth.get_current_user)):
+    collections = db.query(models.Collection).filter(models.Collection.user_id == user.id).order_by(models.Collection.created_at.desc()).all()
     return [{
         "id": c.id,
         "name": c.name,
@@ -322,11 +366,11 @@ def get_collections(db: Session = Depends(get_db)):
 
 
 @app.patch("/api/papers/{paper_id}/move")
-def move_paper(paper_id: int, req: MovePaperRequest, db: Session = Depends(get_db)):
-    paper = db.query(models.Paper).filter(models.Paper.id == paper_id).first()
+def move_paper(paper_id: int, req: MovePaperRequest, db: Session = Depends(get_db), user: models.User = Depends(auth.get_current_user)):
+    paper = db.query(models.Paper).filter(models.Paper.id == paper_id, models.Paper.user_id == user.id).first()
     if not paper:
         raise HTTPException(status_code=404, detail="Paper not found")
-    target = db.query(models.Collection).filter(models.Collection.id == req.target_collection_id).first()
+    target = db.query(models.Collection).filter(models.Collection.id == req.target_collection_id, models.Collection.user_id == user.id).first()
     if not target:
         raise HTTPException(status_code=404, detail="Target collection not found")
     paper.collection_id = req.target_collection_id
@@ -335,8 +379,8 @@ def move_paper(paper_id: int, req: MovePaperRequest, db: Session = Depends(get_d
 
 
 @app.delete("/api/collections/{collection_id}")
-def delete_collection(collection_id: int, db: Session = Depends(get_db)):
-    collection = db.query(models.Collection).filter(models.Collection.id == collection_id).first()
+def delete_collection(collection_id: int, db: Session = Depends(get_db), user: models.User = Depends(auth.get_current_user)):
+    collection = db.query(models.Collection).filter(models.Collection.id == collection_id, models.Collection.user_id == user.id).first()
     if not collection:
         raise HTTPException(status_code=404, detail="Collection not found")
     db.delete(collection)
@@ -345,11 +389,11 @@ def delete_collection(collection_id: int, db: Session = Depends(get_db)):
 
 
 @app.post("/api/collections/{collection_id}/move_all")
-def move_all_papers(collection_id: int, req: MoveAllRequest, db: Session = Depends(get_db)):
-    target = db.query(models.Collection).filter(models.Collection.id == req.target_collection_id).first()
+def move_all_papers(collection_id: int, req: MoveAllRequest, db: Session = Depends(get_db), user: models.User = Depends(auth.get_current_user)):
+    target = db.query(models.Collection).filter(models.Collection.id == req.target_collection_id, models.Collection.user_id == user.id).first()
     if not target:
         raise HTTPException(status_code=404, detail="Target collection not found")
-    papers = db.query(models.Paper).filter(models.Paper.collection_id == collection_id).all()
+    papers = db.query(models.Paper).filter(models.Paper.collection_id == collection_id, models.Paper.user_id == user.id).all()
     for paper in papers:
         paper.collection_id = req.target_collection_id
     db.commit()
@@ -357,14 +401,14 @@ def move_all_papers(collection_id: int, req: MoveAllRequest, db: Session = Depen
 
 
 @app.get("/api/papers")
-def get_papers(db: Session = Depends(get_db)):
-    papers = db.query(models.Paper).order_by(models.Paper.created_at.desc()).all()
+def get_papers(db: Session = Depends(get_db), user: models.User = Depends(auth.get_current_user)):
+    papers = db.query(models.Paper).filter(models.Paper.user_id == user.id).order_by(models.Paper.created_at.desc()).all()
     return [paper_to_dict(p) for p in papers]
 
 
 @app.delete("/api/papers/{paper_id}")
-def delete_paper(paper_id: int, db: Session = Depends(get_db)):
-    paper = db.query(models.Paper).filter(models.Paper.id == paper_id).first()
+def delete_paper(paper_id: int, db: Session = Depends(get_db), user: models.User = Depends(auth.get_current_user)):
+    paper = db.query(models.Paper).filter(models.Paper.id == paper_id, models.Paper.user_id == user.id).first()
     if not paper:
         raise HTTPException(status_code=404, detail="Paper not found")
     db.delete(paper)
@@ -377,7 +421,7 @@ def delete_paper(paper_id: int, db: Session = Depends(get_db)):
 # ---------------------------------------------------------------------------
 
 @app.get("/api/papers/{paper_id}/chats")
-def get_chats(paper_id: int, db: Session = Depends(get_db)):
+def get_chats(paper_id: int, db: Session = Depends(get_db), user: models.User = Depends(auth.get_current_user)):
     chats = (
         db.query(models.ChatMessage)
         .filter(models.ChatMessage.paper_id == paper_id)
@@ -394,7 +438,7 @@ def chat_with_paper(
     db: Session = Depends(get_db),
     x_gemini_key: str | None = Header(default=None),
 ):
-    paper = db.query(models.Paper).filter(models.Paper.id == paper_id).first()
+    paper = db.query(models.Paper).filter(models.Paper.id == paper_id, models.Paper.user_id == user.id).first()
     if not paper:
         raise HTTPException(status_code=404, detail="Paper not found")
 
@@ -516,7 +560,7 @@ def implement_paper(
     db: Session = Depends(get_db),
     x_gemini_key: str | None = Header(default=None),
 ):
-    paper = db.query(models.Paper).filter(models.Paper.id == paper_id).first()
+    paper = db.query(models.Paper).filter(models.Paper.id == paper_id, models.Paper.user_id == user.id).first()
     if not paper:
         raise HTTPException(status_code=404, detail="Paper not found")
     if not paper.full_text:

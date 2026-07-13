@@ -5,20 +5,20 @@ import PdfViewer from './components/PdfViewer';
 import ChatPanel from './components/ChatPanel';
 import SettingsModal from './components/SettingsModal';
 import ImplementModal from './components/ImplementModal';
+import AuthModal from './components/AuthModal';
 import { getStoredDirectory, requestDirectoryPermission, isFsAccessSupported } from './services/fsService';
-import { getApiKey, isOnboarded } from './services/settings';
+import { getApiKey, isOnboarded, getAuthToken } from './services/settings';
 import { FolderOpen } from 'lucide-react';
 import { Group as PanelGroup, Panel, Separator as PanelResizeHandle } from 'react-resizable-panels';
 
 export default function App() {
     const [selectedPaper, setSelectedPaper] = useState(null);
     const [dirHandle, setDirHandle] = useState(null);
-    // 'none' = no folder chosen yet, 'needs-permission' = chosen before but
-    // the browser needs a click to re-grant access, 'granted' = ready.
     const [dirStatus, setDirStatus] = useState('none');
     const [showOnboarding, setShowOnboarding] = useState(false);
     const [showSettings, setShowSettings] = useState(false);
     const [implementingPaper, setImplementingPaper] = useState(null);
+    const [isAuthenticated, setIsAuthenticated] = useState(!!getAuthToken());
 
     useEffect(() => {
         getStoredDirectory().then(({ handle, status }) => {
@@ -42,6 +42,14 @@ export default function App() {
     };
 
     const grantedDirHandle = dirStatus === 'granted' ? dirHandle : null;
+
+    if (!isAuthenticated) {
+        return (
+            <div className="bg-background h-screen w-screen">
+                <AuthModal onAuthenticated={() => setIsAuthenticated(true)} />
+            </div>
+        );
+    }
 
     return (
         <div className="bg-background text-on-background font-body-md h-screen overflow-hidden flex flex-col antialiased">
@@ -74,6 +82,7 @@ export default function App() {
                             selectedPaperId={selectedPaper?.id}
                             dirHandle={grantedDirHandle}
                             onFolderPicked={handleFolderPicked}
+                            key={selectedPaper?.id || 'library'}
                         />
                     </Panel>
 

@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { getApiKey } from './settings';
+import { getApiKey, getAuthToken } from './settings';
 
 let API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
 API_BASE_URL = API_BASE_URL.replace(/\/+$/, '');
@@ -12,8 +12,24 @@ const client = axios.create({ baseURL: API_BASE_URL });
 client.interceptors.request.use((config) => {
     const key = getApiKey();
     if (key) config.headers['X-Gemini-Key'] = key;
+    
+    const token = getAuthToken();
+    if (token) config.headers['Authorization'] = `Bearer ${token}`;
+    
     return config;
 });
+
+export const register = async (username, password) =>
+    (await client.post('/register', { username, password })).data;
+
+export const login = async (username, password) => {
+    const formData = new URLSearchParams();
+    formData.append('username', username);
+    formData.append('password', password);
+    return (await client.post('/login', formData, {
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+    })).data;
+};
 
 // Normalize errors so callers can show err.message directly.
 client.interceptors.response.use(

@@ -1,6 +1,16 @@
 const API_KEY_STORAGE = 'scholarflow-gemini-key';
 const THEME_STORAGE = 'scholarflow-theme';
 const ONBOARDED_STORAGE = 'scholarflow-onboarded';
+const AUTH_TOKEN_STORAGE = 'scholarflow-auth-token';
+
+export function getAuthToken() {
+    return localStorage.getItem(AUTH_TOKEN_STORAGE) || '';
+}
+
+export function setAuthToken(token) {
+    if (token) localStorage.setItem(AUTH_TOKEN_STORAGE, token);
+    else localStorage.removeItem(AUTH_TOKEN_STORAGE);
+}
 
 export function getApiKey() {
     return localStorage.getItem(API_KEY_STORAGE) || '';
