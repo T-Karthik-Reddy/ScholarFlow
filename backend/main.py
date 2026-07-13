@@ -132,7 +132,9 @@ def generate_text_stream(api_key: str, prompt: str, config: genai_types.Generate
             )
             if not requested_model:
                 _working_model = model_name
-            return response
+            for chunk in response:
+                yield chunk
+            return
         except genai_errors.APIError as e:
             last_error = e
             if e.code == 404:
