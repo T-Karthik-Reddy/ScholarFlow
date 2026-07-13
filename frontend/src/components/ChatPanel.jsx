@@ -106,7 +106,9 @@ export default function ChatPanel({ paper, onOpenSettings, chatDraft, onChatDraf
             if (jsonMatch) {
                 const obj = JSON.parse(jsonMatch[0]);
                 if (obj && typeof obj === 'object' && obj.type) {
-                    return { obj, text: content.replace(jsonMatch[0], '').trim() };
+                    let text = content.replace(jsonMatch[0], '').trim();
+                    if (!text) text = obj.text || '';
+                    return { obj, text };
                 }
             }
             const obj = JSON.parse(content);
@@ -257,14 +259,14 @@ export default function ChatPanel({ paper, onOpenSettings, chatDraft, onChatDraf
                             )}
                         </div>
                         <div className="p-4 flex flex-col gap-3">
-                            <p className="text-on-surface font-medium text-sm leading-relaxed min-h-[40px]">
-                                {structuredLastMessage.options?.[currentOptionIndex]}
-                            </p>
+                            <div className="text-on-surface font-medium text-sm leading-relaxed min-h-[40px]">
+                                <ReactMarkdown>{structuredLastMessage.options?.[currentOptionIndex] || ''}</ReactMarkdown>
+                            </div>
                             <button 
                                 onClick={() => handleSend(structuredLastMessage.options?.[currentOptionIndex])}
                                 className="w-full py-2 bg-primary-container text-on-primary-container rounded-lg font-bold shadow hover:bg-primary hover:text-on-primary transition-colors text-sm"
                             >
-                                Select Option {currentOptionIndex + 1}
+                                Implement this flow
                             </button>
                         </div>
                     </div>
