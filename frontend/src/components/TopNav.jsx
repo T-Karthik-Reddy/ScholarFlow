@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Sun, Moon, Settings } from 'lucide-react';
+import { Sun, Moon, Settings, LogOut } from 'lucide-react';
 import { setTheme } from '../services/settings';
 
-export default function TopNav({ onOpenSettings }) {
+export default function TopNav({ onOpenSettings, onLogout }) {
     const [isDark, setIsDark] = useState(false);
 
     useEffect(() => {
@@ -37,9 +37,17 @@ export default function TopNav({ onOpenSettings }) {
                     onClick={onOpenSettings}
                     className="p-2 rounded hover:bg-surface-container transition-colors text-on-surface-variant hover:text-primary"
                     aria-label="Open Settings"
-                    title="Settings (API key & PDF folder)"
+                    title="Settings"
                 >
                     <Settings size={18} />
+                </button>
+                <button
+                    onClick={onLogout}
+                    className="p-2 rounded hover:bg-surface-container transition-colors text-on-surface-variant hover:text-error"
+                    aria-label="Log Out"
+                    title="Log Out"
+                >
+                    <LogOut size={18} />
                 </button>
             </div>
         </header>

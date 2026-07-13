@@ -50,9 +50,15 @@ export default function App() {
         );
     }
 
+    const handleLogout = () => {
+        const { setAuthToken } = require('./services/settings');
+        setAuthToken(null);
+        setIsAuthenticated(false);
+    };
+
     return (
         <div className="bg-background text-on-background font-body-md h-screen overflow-hidden flex flex-col antialiased">
-            <TopNav onOpenSettings={() => setShowSettings(true)} />
+            <TopNav onOpenSettings={() => setShowSettings(true)} onLogout={handleLogout} />
 
             {!isFsAccessSupported() && (
                 <div className="bg-error-container text-on-error-container text-sm px-margin-page py-2 shrink-0">
