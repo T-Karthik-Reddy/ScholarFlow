@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { getChats, sendChat } from '../services/api';
-import { Bot, User, Send, AlertTriangle, Trash2 } from 'lucide-react';
+import { Bot, User, Send, AlertTriangle, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
@@ -11,7 +11,12 @@ export default function ChatPanel({ paper, onOpenSettings, chatDraft, onChatDraf
     const [message, setMessage] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    const [currentOptionIndex, setCurrentOptionIndex] = useState(0);
     const messagesEndRef = useRef(null);
+
+    useEffect(() => {
+        setCurrentOptionIndex(0);
+    }, [chats.length]);
 
     useEffect(() => {
         if (chatDraft) {
@@ -229,19 +234,38 @@ export default function ChatPanel({ paper, onOpenSettings, chatDraft, onChatDraf
             <div className="p-gap-md border-t border-hardcoded-border shrink-0 bg-surface flex flex-col">
                 {structuredLastMessage?.type === 'implementation_plan_choice' && !loading && (
                     <div className="mb-4 bg-surface-container-lowest border border-hardcoded-border rounded-xl shadow-lg overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-300">
-                        <div className="p-3 text-sm font-medium text-on-surface border-b border-hardcoded-border bg-surface-container-low">
-                            Choose an implementation path:
+                        <div className="p-3 flex items-center justify-between text-sm font-medium text-on-surface border-b border-hardcoded-border bg-surface-container-low">
+                            <span>Choose an implementation path:</span>
+                            {structuredLastMessage.options?.length > 0 && (
+                                <div className="flex items-center gap-2 text-on-surface-variant">
+                                    <button 
+                                        disabled={currentOptionIndex === 0} 
+                                        onClick={() => setCurrentOptionIndex(prev => prev - 1)}
+                                        className="p-1 hover:bg-hardcoded-border rounded transition-colors disabled:opacity-30"
+                                    >
+                                        <ChevronLeft size={16} />
+                                    </button>
+                                    <span className="text-xs font-bold w-8 text-center">{currentOptionIndex + 1} of {structuredLastMessage.options.length}</span>
+                                    <button 
+                                        disabled={currentOptionIndex === structuredLastMessage.options.length - 1} 
+                                        onClick={() => setCurrentOptionIndex(prev => prev + 1)}
+                                        className="p-1 hover:bg-hardcoded-border rounded transition-colors disabled:opacity-30"
+                                    >
+                                        <ChevronRight size={16} />
+                                    </button>
+                                </div>
+                            )}
                         </div>
-                        <div className="flex flex-col">
-                            {structuredLastMessage.options.map((opt, idx) => (
-                                <button
-                                    key={idx}
-                                    onClick={() => handleSend(opt)}
-                                    className="text-left px-4 py-3 text-sm hover:bg-primary-container hover:text-on-primary-container transition-colors border-b border-hardcoded-border last:border-b-0 text-on-surface-variant font-medium"
-                                >
-                                    {opt}
-                                </button>
-                            ))}
+                        <div className="p-4 flex flex-col gap-3">
+                            <p className="text-on-surface font-medium text-sm leading-relaxed min-h-[40px]">
+                                {structuredLastMessage.options?.[currentOptionIndex]}
+                            </p>
+                            <button 
+                                onClick={() => handleSend(structuredLastMessage.options?.[currentOptionIndex])}
+                                className="w-full py-2 bg-primary-container text-on-primary-container rounded-lg font-bold shadow hover:bg-primary hover:text-on-primary transition-colors text-sm"
+                            >
+                                Select Option {currentOptionIndex + 1}
+                            </button>
                         </div>
                     </div>
                 )}
