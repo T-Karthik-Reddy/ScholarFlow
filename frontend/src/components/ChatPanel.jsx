@@ -2,6 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { getChats, sendChat } from '../services/api';
 import { Bot, User, Send, AlertTriangle, Trash2 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
 
 export default function ChatPanel({ paper, onOpenSettings, chatDraft, onChatDraftChange }) {
     const [chats, setChats] = useState([]);
@@ -170,6 +173,8 @@ export default function ChatPanel({ paper, onOpenSettings, chatDraft, onChatDraf
                                             <p className="whitespace-pre-wrap">{c.content}</p>
                                         ) : (
                                             <ReactMarkdown
+                                                remarkPlugins={[remarkMath]}
+                                                rehypePlugins={[rehypeKatex]}
                                                 components={{
                                                     p: ({node, ...props}) => <p className="mb-2 last:mb-0" {...props} />,
                                                     ul: ({node, ...props}) => <ul className="list-disc pl-4 mb-2 last:mb-0" {...props} />,
