@@ -90,14 +90,6 @@ export default function ChatPanel({ paper, onOpenSettings, chatDraft, onChatDraf
         if (!text) return text;
         let processed = text.replace(/\\\[([\s\S]*?)\\\]/g, '\n\n$$$$$1$$$$\n\n');
         processed = processed.replace(/\\\(([\s\S]*?)\\\)/g, '$$$1$$');
-        
-        // Promote complex inline math to block math
-        processed = processed.replace(/\$([^$]+)\$/g, (match, p1) => {
-            if (p1.includes('\\frac') || p1.includes('\\text{softmax}') || p1.includes('\\sqrt') && p1.length > 15) {
-                return `\n\n$$${p1}$$\n\n`;
-            }
-            return match;
-        });
         return processed;
     };
 

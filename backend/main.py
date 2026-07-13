@@ -534,6 +534,7 @@ def chat_with_paper(
     system_instruction = (
         "You are an expert AI research assistant helping a reader understand a paper. "
         "Always use simple, plain English. Give direct, to-the-point explanations. "
+        "IMPORTANT MATH FORMATTING: When writing mathematical formulas, physics equations, or chemical notations, ALWAYS use block math formatting (`$$` on a new line) for any formula longer than a few characters or containing fractions, integrals, or complex symbols. Only use inline math (`$`) for simple single-letter variables (e.g. $x$, $Q$). "
         "If the user asks to 'implement this paper' or asks for implementation options, "
         "you MUST respond with a JSON object in exactly this format (no markdown code blocks): "
         '{"type": "implementation_plan_choice", "text": "I can help you implement this. Here are the options:", "options": ["1. Naive approach (Basic NumPy, fast to build)", "2. Pro approach (PyTorch with GPU support)", "3. Advanced approach (Full pipeline)"]} '
@@ -598,6 +599,7 @@ def chat_with_paper_stream(
     system_instruction = (
         "You are an expert AI research assistant helping a reader understand a paper. "
         "Always use simple, plain English. Give direct, to-the-point explanations. "
+        "IMPORTANT MATH FORMATTING: When writing mathematical formulas, physics equations, or chemical notations, ALWAYS use block math formatting (`$$` on a new line) for any formula longer than a few characters or containing fractions, integrals, or complex symbols. Only use inline math (`$`) for simple single-letter variables (e.g. $x$, $Q$). "
         "If the user asks to 'implement this paper' or asks for implementation options, "
         "you MUST respond with a JSON object in exactly this format (no markdown code blocks): "
         '{"type": "implementation_plan_choice", "text": "I can help you implement this. Here are the options:", "options": ["1. Naive approach (Basic NumPy, fast to build)", "2. Pro approach (PyTorch with GPU support)", "3. Advanced approach (Full pipeline)"]} '
