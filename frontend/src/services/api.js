@@ -98,6 +98,63 @@ export const clearChatHistory = async (paperId) => (await client.delete(`/papers
 export const sendChat = async (paperId, message) =>
     (await client.post(`/papers/${paperId}/chat`, { message })).data;
 
+export const sendChatStream = async (paperId, message, onChunk) => {
+    const { getApiKey, getAuthToken, getChatModel } = require('./settings');
+    const headers = { 'Content-Type': 'application/json' };
+    const key = getApiKey();
+    if (key) headers['X-Gemini-Key'] = key;
+    const chatModel = getChatModel();
+    if (chatModel) headers['X-Gemini-Chat-Model'] = chatModel;
+    const token = getAuthToken();
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    const response = await fetch(`${API_BASE_URL}/papers/${paperId}/chat_stream`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ message })
+    });
+
+    if (!response.ok) {
+        if (response.status === 401) {
+            localStorage.removeItem('scholarflow-auth-token');
+            window.location.href = '/';
+            throw new Error('Unauthorized');
+        }
+        let errMsg = 'Failed to send message.';
+        try {
+            const errData = await response.json();
+            errMsg = errData.detail || errMsg;
+        } catch(e) {}
+        throw new Error(errMsg);
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let doneReading = false;
+    let buffer = '';
+
+    while (!doneReading) {
+        const { value, done } = await reader.read();
+        doneReading = done;
+        if (value) {
+            buffer += decoder.decode(value, { stream: true });
+            const blocks = buffer.split('\n\n');
+            buffer = blocks.pop() || ''; // Keep incomplete block in buffer
+            
+            for (const block of blocks) {
+                const line = block.replace(/^data:\s*/, '').trim();
+                if (!line) continue;
+                try {
+                    const data = JSON.parse(line);
+                    onChunk(data);
+                } catch(e) { 
+                    console.error("SSE parse error", e, line);
+                }
+            }
+        }
+    }
+};
+
 // Implementing a paper is a single long Gemini generation; allow up to 5 min.
 export const implementPaper = async (paperId, hints = '') =>
     (await client.post(`/papers/${paperId}/implement`, { hints }, { timeout: 300000 })).data;

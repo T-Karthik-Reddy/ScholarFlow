@@ -43,19 +43,39 @@ export default function ChatPanel({ paper, onOpenSettings, chatDraft, onChatDraf
         const text = msgText.trim();
         if (!text || !paper || loading) return;
 
-        const tempId = `temp_${Date.now()}`;
-        setChats(prev => [...prev, { id: tempId, role: 'user', content: text }]);
+        const tempUserId = `temp_user_${Date.now()}`;
+        const tempAssistantId = `temp_assistant_${Date.now()}`;
+        
+        setChats(prev => [
+            ...prev, 
+            { id: tempUserId, role: 'user', content: text },
+            { id: tempAssistantId, role: 'assistant', content: '' }
+        ]);
+        
         setMessage('');
         setError('');
         setLoading(true);
 
         try {
-            const response = await sendChat(paper.id, text);
-            setChats(prev => [...prev, response]);
+            const { sendChatStream } = await import('../services/api');
+            await sendChatStream(paper.id, text, (chunk) => {
+                if (chunk.text) {
+                    setChats(prev => prev.map(c => 
+                        c.id === tempAssistantId ? { ...c, content: c.content + chunk.text } : c
+                    ));
+                }
+                if (chunk.done) {
+                    setChats(prev => prev.map(c => 
+                        c.id === tempAssistantId ? { ...c, id: chunk.id, timestamp: chunk.timestamp } : c
+                    ));
+                }
+                if (chunk.error) {
+                    setError(chunk.error);
+                }
+            });
         } catch (e) {
             console.error(e);
-            // Roll back the optimistic message and restore the input for retry.
-            setChats(prev => prev.filter(c => c.id !== tempId));
+            setChats(prev => prev.filter(c => c.id !== tempUserId && c.id !== tempAssistantId));
             setMessage(text);
             setError(e.message || 'Failed to send message.');
         } finally {
@@ -171,7 +191,7 @@ export default function ChatPanel({ paper, onOpenSettings, chatDraft, onChatDraf
                                                     a: ({node, ...props}) => <a className="text-primary underline hover:text-primary-container" target="_blank" rel="noopener noreferrer" {...props} />
                                                 }}
                                             >
-                                                {parsed ? parsed.text : c.content}
+                                                {parsed ? parsed.text : (c.content || 'Thinking…')}
                                             </ReactMarkdown>
                                         )}
                                     </div>
@@ -179,16 +199,6 @@ export default function ChatPanel({ paper, onOpenSettings, chatDraft, onChatDraf
                             </div>
                         );
                     })
-                )}
-                {loading && (
-                    <div className="flex gap-gap-sm">
-                        <div className="w-8 h-8 rounded-full bg-surface-container border border-hardcoded-border text-primary flex items-center justify-center shrink-0">
-                            <Bot size={18} />
-                        </div>
-                        <div className="bg-surface-container-low border border-hardcoded-border rounded-lg rounded-tl-none p-3 text-on-surface font-body-md text-body-md shadow-sm">
-                            <p className="text-sm animate-pulse">Thinking…</p>
-                        </div>
-                    </div>
                 )}
                 <div ref={messagesEndRef} />
             </div>

@@ -8,6 +8,7 @@ import fitz  # PyMuPDF
 import httpx
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, Header, HTTPException, status
+from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from google import genai
 from google.genai import errors as genai_errors
@@ -101,6 +102,41 @@ def generate_text(api_key: str, prompt: str, config: genai_types.GenerateContent
             last_error = e
             if e.code == 404:
                 continue  # model unavailable for this key; try the next one
+            if e.code in (401, 403) or (e.code == 400 and "api key" in (e.message or "").lower()):
+                raise HTTPException(status_code=401, detail="Gemini rejected the API key. Check it in Settings.")
+            if e.code == 429:
+                raise HTTPException(status_code=429, detail="Gemini rate limit reached for this key. Wait a minute and retry.")
+            raise HTTPException(status_code=502, detail=f"Gemini error: {e.message or str(e)}")
+    raise HTTPException(status_code=502, detail=f"No available Gemini model for this key. Last error: {last_error}")
+
+
+def generate_text_stream(api_key: str, prompt: str, config: genai_types.GenerateContentConfig | None = None, requested_model: str | None = None):
+    global _working_model
+    client = genai.Client(api_key=api_key)
+    
+    candidates = []
+    if requested_model:
+        candidates.append(requested_model)
+    elif _working_model:
+        candidates.append(_working_model)
+        
+    for m in MODEL_CANDIDATES:
+        if m not in candidates:
+            candidates.append(m)
+            
+    last_error = None
+    for model_name in candidates:
+        try:
+            response = client.models.generate_content_stream(
+                model=model_name, contents=prompt, config=config,
+            )
+            if not requested_model:
+                _working_model = model_name
+            return response
+        except genai_errors.APIError as e:
+            last_error = e
+            if e.code == 404:
+                continue
             if e.code in (401, 403) or (e.code == 400 and "api key" in (e.message or "").lower()):
                 raise HTTPException(status_code=401, detail="Gemini rejected the API key. Check it in Settings.")
             if e.code == 429:
@@ -529,6 +565,83 @@ def chat_with_paper(
     db.refresh(assistant_msg)
 
     return {"id": assistant_msg.id, "role": assistant_msg.role, "content": assistant_msg.content, "timestamp": assistant_msg.timestamp}
+
+
+@app.post("/api/papers/{paper_id}/chat_stream")
+def chat_with_paper_stream(
+    paper_id: int,
+    req: ChatRequest,
+    db: Session = Depends(get_db),
+    x_gemini_key: str | None = Header(default=None),
+    x_gemini_chat_model: str | None = Header(default=None),
+    user: models.User = Depends(auth.get_current_user)
+):
+    paper = db.query(models.Paper).filter(models.Paper.id == paper_id, models.Paper.user_id == user.id).first()
+    if not paper:
+        raise HTTPException(status_code=404, detail="Paper not found")
+
+    api_key = resolve_api_key(x_gemini_key)
+
+    history = (
+        db.query(models.ChatMessage)
+        .filter(models.ChatMessage.paper_id == paper_id)
+        .order_by(models.ChatMessage.timestamp.desc(), models.ChatMessage.id.desc())
+        .limit(10)
+        .all()
+    )
+    history_text = "\n".join(
+        f"{'User' if m.role == 'user' else 'Assistant'}: {m.content}" for m in reversed(history)
+    )
+
+    system_instruction = (
+        "You are an expert AI research assistant helping a reader understand a paper. "
+        "Always use simple, plain English. Give direct, to-the-point explanations. "
+        "If the user asks to 'implement this paper' or asks for implementation options, "
+        "you MUST respond with a JSON object in exactly this format (no markdown code blocks): "
+        '{"type": "implementation_plan_choice", "text": "I can help you implement this. Here are the options:", "options": ["1. Naive approach (Basic NumPy, fast to build)", "2. Pro approach (PyTorch with GPU support)", "3. Advanced approach (Full pipeline)"]} '
+        "When the user selects an option, you should write a detailed step-by-step implementation plan, and you MUST return it in this exact JSON format: "
+        '{"type": "ready_to_implement", "text": "Here is the detailed implementation plan based on your choice...", "plan": "The actual plan details"} '
+        "Otherwise, for normal questions, just return plain Markdown text. Do NOT wrap normal text in JSON."
+    )
+    prompt = (
+        f"{system_instruction}\n\n"
+        f"Here is the full text of the paper '{paper.title}':\n\n{(paper.full_text or '')[:100000]}\n\n"
+        + (f"Recent conversation:\n{history_text}\n\n" if history_text else "")
+        + f"User's message: {req.message}"
+    )
+
+    # Save user message immediately
+    user_msg = models.ChatMessage(paper_id=paper_id, role="user", content=req.message)
+    db.add(user_msg)
+    db.commit()
+
+    def event_generator():
+        try:
+            stream = generate_text_stream(api_key, prompt, requested_model=x_gemini_chat_model)
+            full_response = ""
+            for chunk in stream:
+                if chunk.text:
+                    full_response += chunk.text
+                    data = json.dumps({"text": chunk.text})
+                    yield f"data: {data}\n\n"
+            
+            if full_response.startswith("```json") and full_response.endswith("```"):
+                full_response = full_response[7:-3].strip()
+            elif full_response.startswith("```") and full_response.endswith("```") and "{" in full_response[:5]:
+                full_response = full_response[3:-3].strip()
+                
+            with SessionLocal() as safe_db:
+                assistant_msg = models.ChatMessage(paper_id=paper_id, role="assistant", content=full_response)
+                safe_db.add(assistant_msg)
+                safe_db.commit()
+                safe_db.refresh(assistant_msg)
+                end_data = json.dumps({"done": True, "id": assistant_msg.id, "timestamp": assistant_msg.timestamp.isoformat()})
+                yield f"data: {end_data}\n\n"
+        except Exception as e:
+            err_data = json.dumps({"error": str(e)})
+            yield f"data: {err_data}\n\n"
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 
 @app.delete("/api/papers/{paper_id}/chats")
