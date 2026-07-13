@@ -58,3 +58,26 @@ export function setLoopModel(modelId) {
     if (modelId) localStorage.setItem(LOOP_MODEL_STORAGE, modelId);
     else localStorage.removeItem(LOOP_MODEL_STORAGE);
 }
+
+const TEMPERATURE_STORAGE = 'scholarflow-temperature';
+const THINKING_BUDGET_STORAGE = 'scholarflow-thinking-budget';
+
+export function getTemperature() {
+    const val = localStorage.getItem(TEMPERATURE_STORAGE);
+    return val ? parseFloat(val) : 0.7; // default 0.7
+}
+
+export function setTemperature(val) {
+    if (val !== undefined && val !== null) localStorage.setItem(TEMPERATURE_STORAGE, val.toString());
+    else localStorage.removeItem(TEMPERATURE_STORAGE);
+}
+
+export function getThinkingBudget() {
+    const val = localStorage.getItem(THINKING_BUDGET_STORAGE);
+    return val ? parseInt(val, 10) : 0; // default 0 (off)
+}
+
+export function setThinkingBudget(val) {
+    if (val !== undefined && val !== null) localStorage.setItem(THINKING_BUDGET_STORAGE, val.toString());
+    else localStorage.removeItem(THINKING_BUDGET_STORAGE);
+}

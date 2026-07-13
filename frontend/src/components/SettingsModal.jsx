@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { validateApiKey, getAvailableModels, updateAccount } from '../services/api';
 import { pickDirectory, isFsAccessSupported } from '../services/fsService';
-import { getApiKey, setApiKey, setOnboarded, getChatModel, setChatModel, getLoopModel, setLoopModel } from '../services/settings';
-import { KeyRound, FolderOpen, Check, ExternalLink, Loader2, Sparkles, X, Eye, EyeOff, Settings2, UserCircle } from 'lucide-react';
+import { getApiKey, setApiKey, setOnboarded, getChatModel, setChatModel, getLoopModel, setLoopModel, getTemperature, setTemperature, getThinkingBudget, setThinkingBudget } from '../services/settings';
+import { KeyRound, FolderOpen, Check, ExternalLink, Loader2, Sparkles, X, Eye, EyeOff, Settings2, UserCircle, BrainCircuit, Thermometer } from 'lucide-react';
 
 export default function SettingsModal({ mode, dirHandle, dirStatus, onFolderPicked, onClose }) {
     const isOnboarding = mode === 'onboarding';
@@ -18,6 +18,8 @@ export default function SettingsModal({ mode, dirHandle, dirStatus, onFolderPick
     const [models, setModels] = useState([]);
     const [chatModel, setChatModelSt] = useState(getChatModel() || 'gemini-2.5-flash');
     const [loopModel, setLoopModelSt] = useState(getLoopModel() || 'gemini-2.5-flash');
+    const [temperature, setTemperatureSt] = useState(getTemperature());
+    const [thinkingBudget, setThinkingBudgetSt] = useState(getThinkingBudget());
 
     const [editUsername, setEditUsername] = useState('');
     const [editPassword, setEditPassword] = useState('');
@@ -192,6 +194,39 @@ export default function SettingsModal({ mode, dirHandle, dirStatus, onFolderPick
                     <select value={loopModel} onChange={handleLoopModelChange} className="w-full px-3 py-2 bg-surface-container-lowest border border-hardcoded-border rounded font-body-md text-sm outline-none text-on-surface">
                         {models.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
                     </select>
+                </div>
+            </div>
+            
+            <div className="flex gap-4 mt-2">
+                <div className="flex-1 flex flex-col gap-2">
+                    <div className="flex items-center justify-between">
+                        <label className="text-xs font-medium text-on-surface flex items-center gap-1"><Thermometer size={14}/> Temperature: {temperature}</label>
+                    </div>
+                    <input 
+                        type="range" min="0" max="2" step="0.1" 
+                        value={temperature} 
+                        onChange={(e) => {
+                            const val = parseFloat(e.target.value);
+                            setTemperatureSt(val);
+                            setTemperature(val);
+                        }} 
+                        className="w-full accent-primary"
+                    />
+                </div>
+                <div className="flex-1 flex flex-col gap-1">
+                    <label className="text-xs font-medium text-on-surface flex items-center gap-1"><BrainCircuit size={14}/> Thinking Budget (tokens)</label>
+                    <input 
+                        type="number" min="0" step="1024"
+                        value={thinkingBudget} 
+                        onChange={(e) => {
+                            const val = parseInt(e.target.value, 10) || 0;
+                            setThinkingBudgetSt(val);
+                            setThinkingBudget(val);
+                        }} 
+                        placeholder="e.g. 1024 (0 to disable)"
+                        className="w-full px-3 py-2 bg-surface-container-lowest border border-hardcoded-border rounded font-body-md text-sm outline-none text-on-surface"
+                    />
+                    <span className="text-[10px] text-on-surface-variant">Requires a 'thinking' supported model (e.g. 2.0-pro). Set 0 to disable.</span>
                 </div>
             </div>
         </div>

@@ -620,10 +620,12 @@ def chat_with_paper_stream(
     user_msg = models.ChatMessage(paper_id=paper_id, role="user", content=req.message)
     db.add(user_msg)
     db.commit()
+    
+    config = enhance_config(None, x_gemini_temperature, x_gemini_thinking_budget)
 
     def event_generator():
         try:
-            stream = generate_text_stream(api_key, prompt, requested_model=x_gemini_chat_model)
+            stream = generate_text_stream(api_key, prompt, config=config, requested_model=x_gemini_chat_model)
             full_response = ""
             for chunk in stream:
                 if chunk.text:
@@ -750,6 +752,8 @@ def implement_paper(
     db: Session = Depends(get_db),
     x_gemini_key: str | None = Header(default=None),
     x_gemini_loop_model: str | None = Header(default=None),
+    x_gemini_temperature: str | None = Header(default=None),
+    x_gemini_thinking_budget: str | None = Header(default=None),
     user: models.User = Depends(auth.get_current_user)
 ):
     paper = db.query(models.Paper).filter(models.Paper.id == paper_id, models.Paper.user_id == user.id).first()
@@ -768,6 +772,9 @@ def implement_paper(
 
     config = genai_types.GenerateContentConfig(response_mime_type="application/json")
     eval_config = genai_types.GenerateContentConfig()
+    
+    config = enhance_config(config, x_gemini_temperature, x_gemini_thinking_budget)
+    eval_config = enhance_config(eval_config, x_gemini_temperature, x_gemini_thinking_budget)
 
     max_turns = 3
     current_turn = 1
