@@ -36,8 +36,8 @@ client.interceptors.response.use(
     (response) => response,
     (error) => {
         if (error.response?.status === 401) {
-            localStorage.removeItem('scholarflow_token');
-            window.location.reload();
+            localStorage.removeItem('scholarflow-auth-token');
+            window.location.href = '/';
             return Promise.reject(error);
         }
 
