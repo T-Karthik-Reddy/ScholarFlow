@@ -86,19 +86,42 @@ export default function ChatPanel({ paper, onOpenSettings, chatDraft, onChatDraf
         }
     };
 
+    const preprocessMath = (text) => {
+        if (!text) return text;
+        let processed = text.replace(/\\\[([\s\S]*?)\\\]/g, '\n\n$$$$$1$$$$\n\n');
+        processed = processed.replace(/\\\(([\s\S]*?)\\\)/g, '$$$1$$');
+        
+        // Promote complex inline math to block math
+        processed = processed.replace(/\$([^$]+)\$/g, (match, p1) => {
+            if (p1.includes('\\frac') || p1.includes('\\text{softmax}') || p1.includes('\\sqrt') && p1.length > 15) {
+                return `\n\n$$${p1}$$\n\n`;
+            }
+            return match;
+        });
+        return processed;
+    };
+
     const parseStructuredResponse = (content) => {
+        if (!content) return { obj: null, text: '' };
         try {
+            const jsonMatch = content.match(/\{[\s\S]*"type":\s*"(implementation_plan_choice|ready_to_implement)"[\s\S]*\}/);
+            if (jsonMatch) {
+                const obj = JSON.parse(jsonMatch[0]);
+                if (obj && typeof obj === 'object' && obj.type) {
+                    return { obj, text: content.replace(jsonMatch[0], '').trim() };
+                }
+            }
             const obj = JSON.parse(content);
-            if (obj && typeof obj === 'object' && obj.type) return obj;
+            if (obj && typeof obj === 'object' && obj.type) return { obj, text: '' };
         } catch (e) {
-            return null;
+            return { obj: null, text: content };
         }
-        return null;
+        return { obj: null, text: content };
     };
 
     const isKeyError = /api key/i.test(error);
     const lastMessage = chats[chats.length - 1];
-    const structuredLastMessage = lastMessage?.role === 'assistant' ? parseStructuredResponse(lastMessage.content) : null;
+    const structuredLastMessage = lastMessage?.role === 'assistant' ? parseStructuredResponse(lastMessage.content).obj : null;
 
     const handleProceed = async () => {
         if (!paper) return;
@@ -162,6 +185,8 @@ export default function ChatPanel({ paper, onOpenSettings, chatDraft, onChatDraf
                 ) : (
                     chats.map((c, i) => {
                         const parsed = c.role === 'assistant' ? parseStructuredResponse(c.content) : null;
+                        const displayText = parsed ? parsed.text : c.content;
+                        const mathText = preprocessMath(displayText);
                         return (
                             <div key={c.id ?? i} className={`flex gap-gap-sm ${c.role === 'user' ? 'flex-row-reverse' : ''}`}>
                                 <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${c.role === 'user' ? 'bg-primary-container text-on-primary' : 'bg-surface-container border border-hardcoded-border text-primary'}`}>
@@ -196,7 +221,7 @@ export default function ChatPanel({ paper, onOpenSettings, chatDraft, onChatDraf
                                                     a: ({node, ...props}) => <a className="text-primary underline hover:text-primary-container" target="_blank" rel="noopener noreferrer" {...props} />
                                                 }}
                                             >
-                                                {parsed ? parsed.text : (c.content || 'Thinking…')}
+                                                {mathText || 'Thinking…'}
                                             </ReactMarkdown>
                                         )}
                                     </div>
