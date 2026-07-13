@@ -108,6 +108,9 @@ export default function ChatPanel({ paper, onOpenSettings, chatDraft, onChatDraf
                 if (obj && typeof obj === 'object' && obj.type) {
                     let text = content.replace(jsonMatch[0], '').trim();
                     if (!text) text = obj.text || '';
+                    if (obj.type === 'ready_to_implement' && obj.plan) {
+                        text += '\n\n**Implementation Plan**\n\n' + obj.plan;
+                    }
                     return { obj, text };
                 }
             }
