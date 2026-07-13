@@ -12,10 +12,14 @@ export default function ChatPanel({ paper, onOpenSettings, chatDraft, onChatDraf
 
     useEffect(() => {
         if (chatDraft) {
-            setMessage(prev => {
-                const base = prev.trim();
-                return (base ? base + '\n\n' : '') + `> "${chatDraft}"\n\n`;
-            });
+            if (chatDraft === "I want to implement this paper. What are my options?") {
+                handleSend(chatDraft);
+            } else {
+                setMessage(prev => {
+                    const base = prev.trim();
+                    return (base ? base + '\n\n' : '') + `> "${chatDraft}"\n\n`;
+                });
+            }
             onChatDraftChange("");
         }
     }, [chatDraft, onChatDraftChange]);
@@ -59,7 +63,39 @@ export default function ChatPanel({ paper, onOpenSettings, chatDraft, onChatDraf
         }
     };
 
+    const parseStructuredResponse = (content) => {
+        try {
+            const obj = JSON.parse(content);
+            if (obj && typeof obj === 'object' && obj.type) return obj;
+        } catch (e) {
+            return null;
+        }
+        return null;
+    };
+
     const isKeyError = /api key/i.test(error);
+    const lastMessage = chats[chats.length - 1];
+    const structuredLastMessage = lastMessage?.role === 'assistant' ? parseStructuredResponse(lastMessage.content) : null;
+
+    const handleProceed = async () => {
+        if (!paper) return;
+        setLoading(true);
+        setError('');
+        try {
+            const { implementPaper } = await import('../services/api');
+            // Assuming the detailed plan is in structuredLastMessage.plan
+            const result = await implementPaper(paper.id, structuredLastMessage.plan || "Use the provided plan.");
+            // We removed ImplementModal, so for now we'll just log it or alert it.
+            // Ideally we should have a CodeViewer or pass it up.
+            console.log("Implementation Result:", result);
+            alert("Code generated successfully! Check console for details.");
+        } catch (e) {
+            console.error(e);
+            setError(e.message || "Implementation failed.");
+        } finally {
+            setLoading(false);
+        }
+    };
 
     return (
         <aside className="h-full w-full bg-surface border-l border-hardcoded-border flex flex-col relative z-10 hidden lg:flex">
@@ -76,49 +112,48 @@ export default function ChatPanel({ paper, onOpenSettings, chatDraft, onChatDraf
                 ) : chats.length === 0 ? (
                     <div className="text-center text-on-surface-variant mt-10">No messages yet. Ask a question!</div>
                 ) : (
-                    chats.map((c, i) => (
-                        <div key={c.id ?? i} className={`flex gap-gap-sm ${c.role === 'user' ? 'flex-row-reverse' : ''}`}>
-                            <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${c.role === 'user' ? 'bg-primary-container text-on-primary' : 'bg-surface-container border border-hardcoded-border text-primary'}`}>
-                                {c.role === 'user' ? <User size={18} /> : <Bot size={18} />}
-                            </div>
-                            <div className={`rounded-lg p-3 font-body-md text-body-md shadow-sm max-w-[85%] ${c.role === 'user' ? 'bg-primary text-on-primary rounded-tr-none' : 'bg-surface-container-low border border-hardcoded-border rounded-tl-none text-on-surface'}`}>
-                                <div className="text-sm leading-relaxed">
-                                    {c.role === 'user' ? (
-                                        <p className="whitespace-pre-wrap">{c.content}</p>
-                                    ) : (
-                                        <ReactMarkdown
-                                            components={{
-                                                p: ({node, ...props}) => <p className="mb-2 last:mb-0" {...props} />,
-                                                ul: ({node, ...props}) => <ul className="list-disc pl-4 mb-2 last:mb-0" {...props} />,
-                                                ol: ({node, ...props}) => <ol className="list-decimal pl-4 mb-2 last:mb-0" {...props} />,
-                                                li: ({node, ...props}) => <li className="mb-1 last:mb-0" {...props} />,
-                                                h1: ({node, ...props}) => <h1 className="text-lg font-bold mb-2 mt-3 first:mt-0" {...props} />,
-                                                h2: ({node, ...props}) => <h2 className="text-base font-bold mb-2 mt-3 first:mt-0" {...props} />,
-                                                h3: ({node, ...props}) => <h3 className="text-sm font-bold mb-2 mt-3 first:mt-0" {...props} />,
-                                                pre: ({node, ...props}) => <pre className="bg-black/5 dark:bg-white/10 p-2 rounded text-xs overflow-x-auto mb-2 last:mb-0" {...props} />,
-                                                // react-markdown v9+ no longer passes an `inline`
-                                                // prop; code inside a fenced block gets a
-                                                // language className or lives inside our styled
-                                                // <pre>, so only pad bare single-line code.
-                                                code: ({node, className, children, ...props}) => {
-                                                    const isBlock = className || String(children).includes('\n');
-                                                    return (
-                                                        <code
-                                                            className={isBlock ? `${className || ''} font-mono text-xs` : 'bg-black/5 dark:bg-white/10 rounded px-1 py-0.5 font-mono text-xs'}
-                                                            {...props}
-                                                        >{children}</code>
-                                                    );
-                                                },
-                                                a: ({node, ...props}) => <a className="text-primary underline hover:text-primary-container" target="_blank" rel="noopener noreferrer" {...props} />
-                                            }}
-                                        >
-                                            {c.content}
-                                        </ReactMarkdown>
-                                    )}
+                    chats.map((c, i) => {
+                        const parsed = c.role === 'assistant' ? parseStructuredResponse(c.content) : null;
+                        return (
+                            <div key={c.id ?? i} className={`flex gap-gap-sm ${c.role === 'user' ? 'flex-row-reverse' : ''}`}>
+                                <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${c.role === 'user' ? 'bg-primary-container text-on-primary' : 'bg-surface-container border border-hardcoded-border text-primary'}`}>
+                                    {c.role === 'user' ? <User size={18} /> : <Bot size={18} />}
+                                </div>
+                                <div className={`rounded-lg p-3 font-body-md text-body-md shadow-sm max-w-[85%] ${c.role === 'user' ? 'bg-primary text-on-primary rounded-tr-none' : 'bg-surface-container-low border border-hardcoded-border rounded-tl-none text-on-surface'}`}>
+                                    <div className="text-sm leading-relaxed">
+                                        {c.role === 'user' ? (
+                                            <p className="whitespace-pre-wrap">{c.content}</p>
+                                        ) : (
+                                            <ReactMarkdown
+                                                components={{
+                                                    p: ({node, ...props}) => <p className="mb-2 last:mb-0" {...props} />,
+                                                    ul: ({node, ...props}) => <ul className="list-disc pl-4 mb-2 last:mb-0" {...props} />,
+                                                    ol: ({node, ...props}) => <ol className="list-decimal pl-4 mb-2 last:mb-0" {...props} />,
+                                                    li: ({node, ...props}) => <li className="mb-1 last:mb-0" {...props} />,
+                                                    h1: ({node, ...props}) => <h1 className="text-lg font-bold mb-2 mt-3 first:mt-0" {...props} />,
+                                                    h2: ({node, ...props}) => <h2 className="text-base font-bold mb-2 mt-3 first:mt-0" {...props} />,
+                                                    h3: ({node, ...props}) => <h3 className="text-sm font-bold mb-2 mt-3 first:mt-0" {...props} />,
+                                                    pre: ({node, ...props}) => <pre className="bg-black/5 dark:bg-white/10 p-2 rounded text-xs overflow-x-auto mb-2 last:mb-0" {...props} />,
+                                                    code: ({node, className, children, ...props}) => {
+                                                        const isBlock = className || String(children).includes('\n');
+                                                        return (
+                                                            <code
+                                                                className={isBlock ? `${className || ''} font-mono text-xs` : 'bg-black/5 dark:bg-white/10 rounded px-1 py-0.5 font-mono text-xs'}
+                                                                {...props}
+                                                            >{children}</code>
+                                                        );
+                                                    },
+                                                    a: ({node, ...props}) => <a className="text-primary underline hover:text-primary-container" target="_blank" rel="noopener noreferrer" {...props} />
+                                                }}
+                                            >
+                                                {parsed ? parsed.text : c.content}
+                                            </ReactMarkdown>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                    ))
+                        );
+                    })
                 )}
                 {loading && (
                     <div className="flex gap-gap-sm">
@@ -133,7 +168,38 @@ export default function ChatPanel({ paper, onOpenSettings, chatDraft, onChatDraf
                 <div ref={messagesEndRef} />
             </div>
 
-            <div className="p-gap-md border-t border-hardcoded-border shrink-0 bg-surface">
+            <div className="p-gap-md border-t border-hardcoded-border shrink-0 bg-surface flex flex-col">
+                {structuredLastMessage?.type === 'implementation_plan_choice' && !loading && (
+                    <div className="mb-4 bg-surface-container-lowest border border-hardcoded-border rounded-xl shadow-lg overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-300">
+                        <div className="p-3 text-sm font-medium text-on-surface border-b border-hardcoded-border bg-surface-container-low">
+                            Choose an implementation path:
+                        </div>
+                        <div className="flex flex-col">
+                            {structuredLastMessage.options.map((opt, idx) => (
+                                <button
+                                    key={idx}
+                                    onClick={() => handleSend(opt)}
+                                    className="text-left px-4 py-3 text-sm hover:bg-primary-container hover:text-on-primary-container transition-colors border-b border-hardcoded-border last:border-b-0 text-on-surface-variant font-medium"
+                                >
+                                    {opt}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {structuredLastMessage?.type === 'ready_to_implement' && !loading && (
+                    <div className="mb-4 p-4 bg-primary-container border border-primary-container rounded-xl shadow-lg flex flex-col items-center gap-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                        <span className="text-on-primary-container text-sm font-bold text-center">{structuredLastMessage.text || "Implementation plan is ready."}</span>
+                        <button
+                            onClick={handleProceed}
+                            className="w-full py-2 bg-primary text-on-primary rounded-lg font-bold shadow hover:opacity-90 transition-opacity"
+                        >
+                            🚀 Proceed with Implementation
+                        </button>
+                    </div>
+                )}
+
                 {error && (
                     <div className="mb-3 p-2.5 bg-error-container text-on-error-container rounded text-xs flex items-start gap-2">
                         <AlertTriangle size={14} className="shrink-0 mt-0.5" />

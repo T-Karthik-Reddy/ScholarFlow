@@ -4,7 +4,6 @@ import LibraryPanel from './components/LibraryPanel';
 import PdfViewer from './components/PdfViewer';
 import ChatPanel from './components/ChatPanel';
 import SettingsModal from './components/SettingsModal';
-import ImplementModal from './components/ImplementModal';
 import AuthModal from './components/AuthModal';
 import { getStoredDirectory, requestDirectoryPermission, isFsAccessSupported } from './services/fsService';
 import { getApiKey, isOnboarded, getAuthToken } from './services/settings';
@@ -17,7 +16,6 @@ export default function App() {
     const [dirStatus, setDirStatus] = useState('none');
     const [showOnboarding, setShowOnboarding] = useState(false);
     const [showSettings, setShowSettings] = useState(false);
-    const [implementingPaper, setImplementingPaper] = useState(null);
     const [isAuthenticated, setIsAuthenticated] = useState(!!getAuthToken());
     const [chatDraft, setChatDraft] = useState("");
 
@@ -95,7 +93,7 @@ export default function App() {
                         <PdfViewer
                             paper={selectedPaper}
                             dirHandle={grantedDirHandle}
-                            onImplement={setImplementingPaper}
+                            onImplement={() => setChatDraft("I want to implement this paper. What are my options?")}
                             onOpenSettings={() => setShowSettings(true)}
                             onAskAi={setChatDraft}
                         />
@@ -123,13 +121,6 @@ export default function App() {
                     dirStatus={dirStatus}
                     onFolderPicked={handleFolderPicked}
                     onClose={() => { setShowOnboarding(false); setShowSettings(false); }}
-                />
-            )}
-
-            {implementingPaper && (
-                <ImplementModal
-                    paper={implementingPaper}
-                    onClose={() => setImplementingPaper(null)}
                 />
             )}
         </div>

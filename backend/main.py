@@ -458,8 +458,13 @@ def chat_with_paper(
 
     system_instruction = (
         "You are an expert AI research assistant helping a reader understand a paper. "
-        "Always use simple, plain English. Give direct, to-the-point explanations "
-        "without unnecessary fluff. Format your response in Markdown."
+        "Always use simple, plain English. Give direct, to-the-point explanations. "
+        "If the user asks to 'implement this paper' or asks for implementation options, "
+        "you MUST respond with a JSON object in exactly this format (no markdown code blocks): "
+        '{"type": "implementation_plan_choice", "text": "I can help you implement this. Here are the options:", "options": ["1. Naive approach (Basic NumPy, fast to build)", "2. Pro approach (PyTorch with GPU support)", "3. Advanced approach (Full pipeline)"]} '
+        "When the user selects an option, you should write a detailed step-by-step implementation plan, and you MUST return it in this exact JSON format: "
+        '{"type": "ready_to_implement", "text": "Here is the detailed implementation plan based on your choice...", "plan": "The actual plan details"} '
+        "Otherwise, for normal questions, just return plain Markdown text. Do NOT wrap normal text in JSON."
     )
     prompt = (
         f"{system_instruction}\n\n"
@@ -470,7 +475,13 @@ def chat_with_paper(
 
     # Generate first; only persist the exchange once we have a real answer so
     # failures don't leave orphaned or error messages in the history.
-    assistant_text = generate_text(api_key, prompt)
+    assistant_text = generate_text(api_key, prompt).strip()
+    
+    # Strip markdown formatting if Gemini wrapped the JSON response
+    if assistant_text.startswith("```json") and assistant_text.endswith("```"):
+        assistant_text = assistant_text[7:-3].strip()
+    elif assistant_text.startswith("```") and assistant_text.endswith("```") and "{" in assistant_text[:5]:
+        assistant_text = assistant_text[3:-3].strip()
 
     user_msg = models.ChatMessage(paper_id=paper_id, role="user", content=req.message)
     db.add(user_msg)
@@ -554,6 +565,17 @@ def _parse_manifest(raw: str) -> dict:
     }
 
 
+EVALUATOR_PROMPT = """You are a rigorous code evaluator. You are reviewing a generated research paper implementation project.
+Your goals:
+1. Verify the project perfectly implements the provided detailed plan.
+2. Check that the code is complete (no placeholders like "TODO", "pass", or "...").
+3. Ensure it uses standard, working dependencies.
+4. Ensure it's syntactically correct and will run without obvious errors.
+
+If the project is PERFECT and ready to use, reply with exactly the word: "PASS" (and nothing else).
+If there are ANY issues (missing details, placeholders, bugs, syntax errors, mismatched plan), reply with a clear list of specific, actionable feedback that the generator must fix.
+"""
+
 @app.post("/api/papers/{paper_id}/implement")
 def implement_paper(
     paper_id: int,
@@ -572,12 +594,36 @@ def implement_paper(
 
     prompt = (
         f"{IMPLEMENT_PROMPT}\n\n"
-        + (f"Additional instructions from the user: {req.hints}\n\n" if req.hints.strip() else "")
+        + (f"Detailed Implementation Plan to follow:\n{req.hints}\n\n" if req.hints.strip() else "")
         + f"Paper title: {paper.title}\n\nFull paper text:\n\n{paper.full_text[:80000]}"
     )
 
     config = genai_types.GenerateContentConfig(response_mime_type="application/json")
-    raw = generate_text(api_key, prompt, config=config)
+    eval_config = genai_types.GenerateContentConfig()
+
+    max_turns = 3
+    current_turn = 1
+    raw = ""
+
+    while current_turn <= max_turns:
+        print(f"[{paper.title}] Implementation Loop Turn {current_turn}/{max_turns}...")
+        raw = generate_text(api_key, prompt, config=config)
+        
+        eval_prompt = (
+            f"{EVALUATOR_PROMPT}\n\n"
+            f"Original Plan to Verify:\n{req.hints}\n\n"
+            f"Generated Project Manifest (JSON):\n{raw}"
+        )
+        
+        eval_result = generate_text(api_key, eval_prompt, config=eval_config).strip()
+        print(f"[{paper.title}] Evaluator Result: {eval_result[:100]}...")
+        
+        if eval_result.strip().upper() == "PASS" or current_turn == max_turns:
+            break
+            
+        prompt += f"\n\n--- TURN {current_turn} EVALUATOR FEEDBACK ---\nYour previous code was rejected. Fix these issues:\n{eval_result}\n\nProvide the completely fixed JSON manifest."
+        current_turn += 1
+
     manifest = _parse_manifest(raw)
     manifest["paper_id"] = paper.id
     manifest["paper_title"] = paper.title
