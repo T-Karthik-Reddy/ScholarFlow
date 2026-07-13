@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { validateApiKey } from '../services/api';
 import { pickDirectory, isFsAccessSupported } from '../services/fsService';
 import { getApiKey, setApiKey, setOnboarded } from '../services/settings';
-import { KeyRound, FolderOpen, Check, ExternalLink, Loader2, Sparkles, X } from 'lucide-react';
+import { KeyRound, FolderOpen, Check, ExternalLink, Loader2, Sparkles, X, Eye, EyeOff } from 'lucide-react';
 
 export default function SettingsModal({ mode, dirHandle, dirStatus, onFolderPicked, onClose }) {
     const isOnboarding = mode === 'onboarding';
@@ -13,6 +13,7 @@ export default function SettingsModal({ mode, dirHandle, dirStatus, onFolderPick
     const [keyStatus, setKeyStatus] = useState(getApiKey() ? 'saved' : 'idle'); // idle | checking | valid | invalid | saved
     const [keyError, setKeyError] = useState('');
     const [folderError, setFolderError] = useState('');
+    const [showKey, setShowKey] = useState(false);
 
     const handleValidateAndSave = async () => {
         const key = keyInput.trim();
@@ -70,13 +71,23 @@ export default function SettingsModal({ mode, dirHandle, dirStatus, onFolderPick
                 Get a free API key from Google AI Studio <ExternalLink size={13} />
             </a>
             <div className="flex gap-2">
-                <input
-                    type="password"
-                    value={keyInput}
-                    onChange={(e) => { setKeyInput(e.target.value); setKeyStatus('idle'); setKeyError(''); }}
-                    placeholder="Paste your Gemini API key (AIza...)"
-                    className="flex-1 px-3 py-2 bg-surface-container-lowest border border-hardcoded-border rounded font-body-md text-sm focus:border-primary outline-none text-on-surface"
-                />
+                <div className="flex-1 relative">
+                    <input
+                        type={showKey ? "text" : "password"}
+                        value={keyInput}
+                        onChange={(e) => { setKeyInput(e.target.value); setKeyStatus('idle'); setKeyError(''); }}
+                        placeholder="Paste your Gemini API key (AIza...)"
+                        className="w-full px-3 py-2 pr-10 bg-surface-container-lowest border border-hardcoded-border rounded font-body-md text-sm focus:border-primary outline-none text-on-surface"
+                    />
+                    <button
+                        type="button"
+                        onClick={() => setShowKey(!showKey)}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-on-surface-variant hover:text-on-surface transition-colors"
+                        aria-label={showKey ? "Hide API key" : "Show API key"}
+                    >
+                        {showKey ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                </div>
                 <button
                     onClick={handleValidateAndSave}
                     disabled={keyStatus === 'checking'}
