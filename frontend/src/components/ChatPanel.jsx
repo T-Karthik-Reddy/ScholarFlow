@@ -128,6 +128,21 @@ export default function ChatPanel({ paper, onOpenSettings, chatDraft, onChatDraf
 
     const handleProceed = async () => {
         if (!paper) return;
+
+        let dirHandle;
+        try {
+            if (!window.showDirectoryPicker) {
+                throw new Error("Your browser does not support the File System Access API. Please use Chrome or Edge.");
+            }
+            dirHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
+        } catch (e) {
+            console.log("User cancelled directory picker or API not supported:", e);
+            if (e.message.includes("support")) {
+                setError(e.message);
+            }
+            return;
+        }
+
         setLoading(true);
         setError('');
         
@@ -143,9 +158,28 @@ export default function ChatPanel({ paper, onOpenSettings, chatDraft, onChatDraf
             const result = await implementPaper(paper.id, structuredLastMessage.plan || "Use the provided plan.");
             console.log("Implementation Result:", result);
             
+            // Save files to local disk via File System Access API
+            try {
+                const projectDirHandle = await dirHandle.getDirectoryHandle(result.project_name, { create: true });
+                for (const file of result.files) {
+                    const parts = file.path.split('/');
+                    let currentHandle = projectDirHandle;
+                    for (let i = 0; i < parts.length - 1; i++) {
+                        currentHandle = await currentHandle.getDirectoryHandle(parts[i], { create: true });
+                    }
+                    const fileHandle = await currentHandle.getFileHandle(parts[parts.length - 1], { create: true });
+                    const writable = await fileHandle.createWritable();
+                    await writable.write(file.content);
+                    await writable.close();
+                }
+            } catch (fsError) {
+                console.error("Failed to write files to disk:", fsError);
+                throw new Error("Code generated, but failed to write to your local disk. Do you have permissions?");
+            }
+            
             setChats(prev => prev.map(c => c.id === tempAssistantId ? {
                 ...c,
-                content: `✅ **Implementation Complete!**\n\nThe full project code has been generated and saved to your local disk at:\n\`${result.local_path}\`\n\n**Summary:**\n${result.summary}\n\n**Run Instructions:**\n\`\`\`bash\n${result.run_instructions}\n\`\`\``
+                content: `✅ **Implementation Complete!**\n\nThe full project code has been perfectly generated and successfully saved to the directory you selected, under the folder \`${result.project_name}\`.\n\n**Summary:**\n${result.summary}\n\n**Run Instructions:**\n\`\`\`bash\n${result.run_instructions}\n\`\`\``
             } : c));
         } catch (e) {
             console.error(e);
@@ -226,7 +260,7 @@ export default function ChatPanel({ paper, onOpenSettings, chatDraft, onChatDraf
                                                         const isBlock = className || String(children).includes('\n');
                                                         return (
                                                             <code
-                                                                className={isBlock ? `${className || ''} font-mono text-xs` : 'bg-black/5 dark:bg-white/10 rounded px-1 py-0.5 font-mono text-xs'}
+                                                                className={isBlock ? `${className || ''} font-mono text-xs` : 'bg-black/5 dark:bg-white/10 rounded px-1 py-0.5 font-mono text-xs break-all'}
                                                                 {...props}
                                                             >{children}</code>
                                                         );
