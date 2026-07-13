@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
-import { validateApiKey } from '../services/api';
+import React, { useState, useEffect } from 'react';
+import { validateApiKey, getAvailableModels, updateAccount } from '../services/api';
 import { pickDirectory, isFsAccessSupported } from '../services/fsService';
-import { getApiKey, setApiKey, setOnboarded } from '../services/settings';
-import { KeyRound, FolderOpen, Check, ExternalLink, Loader2, Sparkles, X, Eye, EyeOff } from 'lucide-react';
+import { getApiKey, setApiKey, setOnboarded, getChatModel, setChatModel, getLoopModel, setLoopModel } from '../services/settings';
+import { KeyRound, FolderOpen, Check, ExternalLink, Loader2, Sparkles, X, Eye, EyeOff, Settings2, UserCircle } from 'lucide-react';
 
 export default function SettingsModal({ mode, dirHandle, dirStatus, onFolderPicked, onClose }) {
     const isOnboarding = mode === 'onboarding';
@@ -14,6 +14,41 @@ export default function SettingsModal({ mode, dirHandle, dirStatus, onFolderPick
     const [keyError, setKeyError] = useState('');
     const [folderError, setFolderError] = useState('');
     const [showKey, setShowKey] = useState(false);
+    
+    const [models, setModels] = useState([]);
+    const [chatModel, setChatModelSt] = useState(getChatModel() || 'gemini-2.5-flash');
+    const [loopModel, setLoopModelSt] = useState(getLoopModel() || 'gemini-2.5-flash');
+
+    const [editUsername, setEditUsername] = useState('');
+    const [editPassword, setEditPassword] = useState('');
+    const [accountMsg, setAccountMsg] = useState('');
+
+    useEffect(() => {
+        getAvailableModels().then(setModels).catch(console.error);
+    }, []);
+
+    const handleChatModelChange = (e) => {
+        const val = e.target.value;
+        setChatModelSt(val);
+        setChatModel(val);
+    };
+    
+    const handleLoopModelChange = (e) => {
+        const val = e.target.value;
+        setLoopModelSt(val);
+        setLoopModel(val);
+    };
+
+    const handleUpdateAccount = async () => {
+        try {
+            await updateAccount(editUsername, editPassword);
+            setAccountMsg('Account updated successfully.');
+            setEditUsername('');
+            setEditPassword('');
+        } catch (e) {
+            setAccountMsg(e.message || 'Failed to update account.');
+        }
+    };
 
     const handleValidateAndSave = async () => {
         const key = keyInput.trim();
@@ -136,6 +171,68 @@ export default function SettingsModal({ mode, dirHandle, dirStatus, onFolderPick
         </div>
     );
 
+    const modelSection = (
+        <div className="flex flex-col gap-3">
+            <div className="flex items-center gap-2 text-on-surface">
+                <Settings2 size={18} className="text-primary" />
+                <h4 className="font-bold text-sm">AI Models</h4>
+            </div>
+            <p className="text-sm text-on-surface-variant leading-relaxed">
+                Configure which models to use for normal chatting and heavy loop engineering.
+            </p>
+            <div className="flex gap-4">
+                <div className="flex-1 flex flex-col gap-1">
+                    <label className="text-xs font-medium text-on-surface">Chat Model</label>
+                    <select value={chatModel} onChange={handleChatModelChange} className="w-full px-3 py-2 bg-surface-container-lowest border border-hardcoded-border rounded font-body-md text-sm outline-none text-on-surface">
+                        {models.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                    </select>
+                </div>
+                <div className="flex-1 flex flex-col gap-1">
+                    <label className="text-xs font-medium text-on-surface">Loop Engine Model</label>
+                    <select value={loopModel} onChange={handleLoopModelChange} className="w-full px-3 py-2 bg-surface-container-lowest border border-hardcoded-border rounded font-body-md text-sm outline-none text-on-surface">
+                        {models.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                    </select>
+                </div>
+            </div>
+        </div>
+    );
+
+    const accountSection = (
+        <div className="flex flex-col gap-3">
+            <div className="flex items-center gap-2 text-on-surface">
+                <UserCircle size={18} className="text-primary" />
+                <h4 className="font-bold text-sm">Account Settings</h4>
+            </div>
+            <p className="text-sm text-on-surface-variant leading-relaxed">
+                Update your login credentials here.
+            </p>
+            <div className="flex gap-2">
+                <input
+                    type="text"
+                    value={editUsername}
+                    onChange={(e) => setEditUsername(e.target.value)}
+                    placeholder="New Username (Optional)"
+                    className="flex-1 px-3 py-2 bg-surface-container-lowest border border-hardcoded-border rounded font-body-md text-sm focus:border-primary outline-none text-on-surface"
+                />
+                <input
+                    type="password"
+                    value={editPassword}
+                    onChange={(e) => setEditPassword(e.target.value)}
+                    placeholder="New Password (Optional)"
+                    className="flex-1 px-3 py-2 bg-surface-container-lowest border border-hardcoded-border rounded font-body-md text-sm focus:border-primary outline-none text-on-surface"
+                />
+                <button
+                    onClick={handleUpdateAccount}
+                    disabled={!editUsername && !editPassword}
+                    className="px-3 py-2 bg-surface-container-high text-on-surface text-sm rounded font-medium hover:bg-hardcoded-border disabled:opacity-50"
+                >
+                    Update
+                </button>
+            </div>
+            {accountMsg && <p className="text-sm text-primary">{accountMsg}</p>}
+        </div>
+    );
+
     return (
         <div className="absolute inset-0 z-[100] flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
             <div className="bg-surface rounded-lg shadow-xl border border-hardcoded-border w-full max-w-lg flex flex-col overflow-hidden">
@@ -159,6 +256,10 @@ export default function SettingsModal({ mode, dirHandle, dirStatus, onFolderPick
                             {keySection}
                             <div className="border-t border-hardcoded-border"></div>
                             {folderSection}
+                            <div className="border-t border-hardcoded-border"></div>
+                            {modelSection}
+                            <div className="border-t border-hardcoded-border"></div>
+                            {accountSection}
                         </>
                     )}
                 </div>

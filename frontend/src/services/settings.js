@@ -37,3 +37,24 @@ export function isOnboarded() {
 export function setOnboarded() {
     localStorage.setItem(ONBOARDED_STORAGE, 'true');
 }
+
+const CHAT_MODEL_STORAGE = 'scholarflow-chat-model';
+const LOOP_MODEL_STORAGE = 'scholarflow-loop-model';
+
+export function getChatModel() {
+    return localStorage.getItem(CHAT_MODEL_STORAGE) || '';
+}
+
+export function setChatModel(modelId) {
+    if (modelId) localStorage.setItem(CHAT_MODEL_STORAGE, modelId);
+    else localStorage.removeItem(CHAT_MODEL_STORAGE);
+}
+
+export function getLoopModel() {
+    return localStorage.getItem(LOOP_MODEL_STORAGE) || '';
+}
+
+export function setLoopModel(modelId) {
+    if (modelId) localStorage.setItem(LOOP_MODEL_STORAGE, modelId);
+    else localStorage.removeItem(LOOP_MODEL_STORAGE);
+}

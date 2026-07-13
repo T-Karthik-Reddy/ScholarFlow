@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { getApiKey, getAuthToken } from './settings';
+import { getApiKey, getAuthToken, getChatModel, getLoopModel } from './settings';
 
 let API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
 API_BASE_URL = API_BASE_URL.replace(/\/+$/, '');
@@ -13,6 +13,12 @@ client.interceptors.request.use((config) => {
     const key = getApiKey();
     if (key) config.headers['X-Gemini-Key'] = key;
     
+    const chatModel = getChatModel();
+    if (chatModel) config.headers['X-Gemini-Chat-Model'] = chatModel;
+    
+    const loopModel = getLoopModel();
+    if (loopModel) config.headers['X-Gemini-Loop-Model'] = loopModel;
+    
     const token = getAuthToken();
     if (token) config.headers['Authorization'] = `Bearer ${token}`;
     
@@ -21,6 +27,9 @@ client.interceptors.request.use((config) => {
 
 export const register = async (username, password) =>
     (await client.post('/register', { username, password })).data;
+
+export const updateAccount = async (username, password) =>
+    (await client.patch('/user', { username, password })).data;
 
 export const login = async (username, password) => {
     const formData = new URLSearchParams();
@@ -53,6 +62,8 @@ client.interceptors.response.use(
 
 export const getHealth = async () => (await client.get('/health')).data;
 
+export const getAvailableModels = async () => (await client.get('/settings/models')).data;
+
 export const validateApiKey = async (apiKey) =>
     (await client.post('/settings/validate_key', { api_key: apiKey })).data;
 
@@ -81,6 +92,8 @@ export const getPapers = async () => (await client.get('/papers')).data;
 export const deletePaper = async (paperId) => (await client.delete(`/papers/${paperId}`)).data;
 
 export const getChats = async (paperId) => (await client.get(`/papers/${paperId}/chats`)).data;
+
+export const clearChatHistory = async (paperId) => (await client.delete(`/papers/${paperId}/chats`)).data;
 
 export const sendChat = async (paperId, message) =>
     (await client.post(`/papers/${paperId}/chat`, { message })).data;

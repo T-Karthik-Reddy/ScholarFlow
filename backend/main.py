@@ -71,18 +71,29 @@ def resolve_api_key(x_gemini_key: str | None) -> str:
     return key
 
 
-def generate_text(api_key: str, prompt: str, config: genai_types.GenerateContentConfig | None = None) -> str:
+def generate_text(api_key: str, prompt: str, config: genai_types.GenerateContentConfig | None = None, requested_model: str | None = None) -> str:
     """Generate content, falling back through MODEL_CANDIDATES on 404s."""
     global _working_model
     client = genai.Client(api_key=api_key)
-    candidates = [_working_model] + MODEL_CANDIDATES if _working_model else MODEL_CANDIDATES
+    
+    candidates = []
+    if requested_model:
+        candidates.append(requested_model)
+    elif _working_model:
+        candidates.append(_working_model)
+        
+    for m in MODEL_CANDIDATES:
+        if m not in candidates:
+            candidates.append(m)
+            
     last_error = None
     for model_name in candidates:
         try:
             response = client.models.generate_content(
                 model=model_name, contents=prompt, config=config,
             )
-            _working_model = model_name
+            if not requested_model:
+                _working_model = model_name
             if not response.text:
                 raise HTTPException(status_code=502, detail="Gemini returned an empty response. Try again.")
             return response.text
@@ -268,6 +279,31 @@ def health():
     return {"status": "ok", "server_key_configured": bool(SERVER_GEMINI_API_KEY)}
 
 
+@app.get("/api/settings/models")
+def get_models():
+    # Return a curated list of popular models
+    return [
+        {"id": "gemini-2.5-flash", "name": "Gemini 2.5 Flash"},
+        {"id": "gemini-2.5-flash-lite", "name": "Gemini 2.5 Flash Lite"},
+        {"id": "gemini-2.0-flash", "name": "Gemini 2.0 Flash"},
+        {"id": "gemini-2.0-pro-exp-02-05", "name": "Gemini 2.0 Pro"},
+        {"id": "gemini-3.1-flash-lite", "name": "Gemini 3.1 Flash Lite"},
+    ]
+
+
+@app.patch("/api/user")
+def update_user(req: UserCreate, db: Session = Depends(get_db), user: models.User = Depends(auth.get_current_user)):
+    if req.username and req.username != user.username:
+        existing = db.query(models.User).filter(models.User.username == req.username).first()
+        if existing:
+            raise HTTPException(status_code=400, detail="Username already taken")
+        user.username = req.username
+    if req.password:
+        user.hashed_password = auth.get_password_hash(req.password)
+    db.commit()
+    return {"message": "Profile updated"}
+
+
 @app.post("/api/settings/validate_key")
 def validate_key(req: ValidateKeyRequest):
     key = req.api_key.strip()
@@ -437,6 +473,7 @@ def chat_with_paper(
     req: ChatRequest,
     db: Session = Depends(get_db),
     x_gemini_key: str | None = Header(default=None),
+    x_gemini_chat_model: str | None = Header(default=None),
     user: models.User = Depends(auth.get_current_user)
 ):
     paper = db.query(models.Paper).filter(models.Paper.id == paper_id, models.Paper.user_id == user.id).first()
@@ -475,7 +512,7 @@ def chat_with_paper(
 
     # Generate first; only persist the exchange once we have a real answer so
     # failures don't leave orphaned or error messages in the history.
-    assistant_text = generate_text(api_key, prompt).strip()
+    assistant_text = generate_text(api_key, prompt, requested_model=x_gemini_chat_model).strip()
     
     # Strip markdown formatting if Gemini wrapped the JSON response
     if assistant_text.startswith("```json") and assistant_text.endswith("```"):
@@ -492,6 +529,16 @@ def chat_with_paper(
     db.refresh(assistant_msg)
 
     return {"id": assistant_msg.id, "role": assistant_msg.role, "content": assistant_msg.content, "timestamp": assistant_msg.timestamp}
+
+
+@app.delete("/api/papers/{paper_id}/chats")
+def clear_chats(paper_id: int, db: Session = Depends(get_db), user: models.User = Depends(auth.get_current_user)):
+    paper = db.query(models.Paper).filter(models.Paper.id == paper_id, models.Paper.user_id == user.id).first()
+    if not paper:
+        raise HTTPException(status_code=404, detail="Paper not found")
+    db.query(models.ChatMessage).filter(models.ChatMessage.paper_id == paper_id).delete()
+    db.commit()
+    return {"message": "Chat history cleared"}
 
 
 # ---------------------------------------------------------------------------
@@ -582,6 +629,7 @@ def implement_paper(
     req: ImplementRequest,
     db: Session = Depends(get_db),
     x_gemini_key: str | None = Header(default=None),
+    x_gemini_loop_model: str | None = Header(default=None),
     user: models.User = Depends(auth.get_current_user)
 ):
     paper = db.query(models.Paper).filter(models.Paper.id == paper_id, models.Paper.user_id == user.id).first()
@@ -607,7 +655,7 @@ def implement_paper(
 
     while current_turn <= max_turns:
         print(f"[{paper.title}] Implementation Loop Turn {current_turn}/{max_turns}...")
-        raw = generate_text(api_key, prompt, config=config)
+        raw = generate_text(api_key, prompt, config=config, requested_model=x_gemini_loop_model)
         
         eval_prompt = (
             f"{EVALUATOR_PROMPT}\n\n"
@@ -615,7 +663,7 @@ def implement_paper(
             f"Generated Project Manifest (JSON):\n{raw}"
         )
         
-        eval_result = generate_text(api_key, eval_prompt, config=eval_config).strip()
+        eval_result = generate_text(api_key, eval_prompt, config=eval_config, requested_model=x_gemini_loop_model).strip()
         print(f"[{paper.title}] Evaluator Result: {eval_result[:100]}...")
         
         if eval_result.strip().upper() == "PASS" or current_turn == max_turns:

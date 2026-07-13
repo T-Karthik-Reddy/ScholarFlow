@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { getChats, sendChat } from '../services/api';
-import { Bot, User, Send, AlertTriangle } from 'lucide-react';
+import { Bot, User, Send, AlertTriangle, Trash2 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 
 export default function ChatPanel({ paper, onOpenSettings, chatDraft, onChatDraftChange }) {
@@ -97,6 +97,21 @@ export default function ChatPanel({ paper, onOpenSettings, chatDraft, onChatDraf
         }
     };
 
+    const handleClearChats = async () => {
+        if (!paper || chats.length === 0) return;
+        if (!window.confirm("Are you sure you want to clear the chat history for this paper?")) return;
+        setLoading(true);
+        try {
+            const { clearChatHistory } = await import('../services/api');
+            await clearChatHistory(paper.id);
+            setChats([]);
+        } catch (e) {
+            setError(e.message || "Failed to clear chats.");
+        } finally {
+            setLoading(false);
+        }
+    };
+
     return (
         <aside className="h-full w-full bg-surface border-l border-hardcoded-border flex flex-col relative z-10 hidden lg:flex">
             <div className="p-gap-md border-b border-hardcoded-border flex items-center justify-between shrink-0">
@@ -104,6 +119,16 @@ export default function ChatPanel({ paper, onOpenSettings, chatDraft, onChatDraf
                     <Bot className="text-primary" size={20} />
                     <span className="font-headline-md text-headline-md font-bold text-on-surface">Gemini Assistant</span>
                 </div>
+                {chats.length > 0 && (
+                    <button
+                        onClick={handleClearChats}
+                        disabled={loading}
+                        title="Clear Chat History"
+                        className="p-1.5 text-on-surface-variant hover:text-error hover:bg-error-container/50 rounded transition-colors disabled:opacity-50"
+                    >
+                        <Trash2 size={16} />
+                    </button>
+                )}
             </div>
 
             <div className="flex-1 overflow-y-auto custom-scrollbar p-gap-md flex flex-col gap-gap-md">
