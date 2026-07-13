@@ -729,16 +729,17 @@ def _parse_manifest(raw: str) -> dict:
     }
 
 
-EVALUATOR_PROMPT = """You are a rigorous code evaluator. You are reviewing a generated research paper implementation project.
-Your goals:
-1. Verify the project perfectly implements the provided detailed plan.
-2. Check that the code is complete (no placeholders like "TODO", "pass", or "...").
-3. Ensure it uses standard, working dependencies.
-4. Ensure it's syntactically correct and will run without obvious errors.
+EVALUATOR_PROMPT = """You are a completely ruthless, highly critical Staff Software Engineer evaluating an AI-generated implementation of a complex research paper. 
+Your ONLY goal is to find bugs, logic errors, incomplete implementations, or deviations from the original plan.
 
-If the project is PERFECT and ready to use, reply with exactly the word: "PASS" (and nothing else).
-If there are ANY issues (missing details, placeholders, bugs, syntax errors, mismatched plan), reply with a clear list of specific, actionable feedback that the generator must fix.
-"""
+CRITICAL RULES FOR EVALUATION:
+1. You MUST find at least one flaw in the first turn, no matter how small. It is literally impossible for a first-draft LLM code to be perfect. Force the coder to iterate.
+2. Check EVERY SINGLE LINE of code for placeholders like `...`, `TODO`, `pass`, or `NotImplemented`. If you find ANY, reject it immediately.
+3. Check if the mathematical formulas from the paper are perfectly translated into tensor operations. Are the dimensions correct?
+4. Are the neural network layers strictly following the paper's architecture?
+
+If the project is 100% PERFECT, production-ready, and has NO placeholders, reply with exactly the word: "PASS" (and nothing else).
+If there are ANY issues, reply with a brutal, detailed list of feedback for the coder to fix. DO NOT BE POLITE. Just list the bugs."""
 
 @app.post("/api/papers/{paper_id}/implement")
 def implement_paper(
@@ -792,4 +793,16 @@ def implement_paper(
     manifest = _parse_manifest(raw)
     manifest["paper_id"] = paper.id
     manifest["paper_title"] = paper.title
+
+    import os
+    project_dir = os.path.join(os.getcwd(), "generated_projects", manifest["project_name"])
+    os.makedirs(project_dir, exist_ok=True)
+    for f in manifest.get("files", []):
+        file_path = os.path.join(project_dir, f["path"])
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+        with open(file_path, "w", encoding="utf-8") as f_out:
+            f_out.write(f["content"])
+            
+    manifest["local_path"] = project_dir
+
     return manifest

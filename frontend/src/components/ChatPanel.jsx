@@ -130,17 +130,27 @@ export default function ChatPanel({ paper, onOpenSettings, chatDraft, onChatDraf
         if (!paper) return;
         setLoading(true);
         setError('');
+        
+        const tempAssistantId = Date.now();
+        setChats(prev => [...prev, {
+            id: tempAssistantId,
+            role: 'assistant',
+            content: '*Starting Agentic Implementation Loop... The Senior Engineer evaluator is rigorously reviewing the generated code. (This may take up to 2 minutes)*'
+        }]);
+
         try {
             const { implementPaper } = await import('../services/api');
-            // Assuming the detailed plan is in structuredLastMessage.plan
             const result = await implementPaper(paper.id, structuredLastMessage.plan || "Use the provided plan.");
-            // We removed ImplementModal, so for now we'll just log it or alert it.
-            // Ideally we should have a CodeViewer or pass it up.
             console.log("Implementation Result:", result);
-            alert("Code generated successfully! Check console for details.");
+            
+            setChats(prev => prev.map(c => c.id === tempAssistantId ? {
+                ...c,
+                content: `✅ **Implementation Complete!**\n\nThe full project code has been generated and saved to your local disk at:\n\`${result.local_path}\`\n\n**Summary:**\n${result.summary}\n\n**Run Instructions:**\n\`\`\`bash\n${result.run_instructions}\n\`\`\``
+            } : c));
         } catch (e) {
             console.error(e);
             setError(e.message || "Implementation failed.");
+            setChats(prev => prev.filter(c => c.id !== tempAssistantId));
         } finally {
             setLoading(false);
         }
