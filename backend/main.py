@@ -538,8 +538,8 @@ def chat_with_paper(
         "If the user asks to 'implement this paper' or asks for implementation options, "
         "you MUST respond with a JSON object in exactly this format, generating 3 distinct options based on the specific architectures or algorithms in the paper (no markdown code blocks): "
         '{"type": "implementation_plan_choice", "text": "There are multiple ways to approach this. Which flow would you like to implement?", "options": ["**<Short Title>**: <1-sentence description>", "**<Short Title>**: <1-sentence description>", "**<Short Title>**: <1-sentence description>"]} '
-        "When the user selects an option, you should write a detailed step-by-step implementation plan, and you MUST return it in this exact JSON format: "
-        '{"type": "ready_to_implement", "text": "Here is the detailed implementation plan based on your choice...", "plan": "The actual plan details"} '
+        "When the user selects an option, you MUST write an incredibly rigorous, deeply detailed software architecture plan. It must include exact math-to-code translations, exact tensor dimensions, class/function signatures, and a strict step-by-step implementation guide. Return it in this exact JSON format: "
+        '{"type": "ready_to_implement", "text": "Here is the rigorous technical architecture based on your choice:", "plan": "The highly detailed Markdown plan goes here..."} '
         "Otherwise, for normal questions, just return plain Markdown text. Do NOT wrap normal text in JSON."
     )
     prompt = (
@@ -603,8 +603,8 @@ def chat_with_paper_stream(
         "If the user asks to 'implement this paper' or asks for implementation options, "
         "you MUST respond with a JSON object in exactly this format, generating 3 distinct options based on the specific architectures or algorithms in the paper (no markdown code blocks): "
         '{"type": "implementation_plan_choice", "text": "There are multiple ways to approach this. Which flow would you like to implement?", "options": ["**<Short Title>**: <1-sentence description>", "**<Short Title>**: <1-sentence description>", "**<Short Title>**: <1-sentence description>"]} '
-        "When the user selects an option, you should write a detailed step-by-step implementation plan, and you MUST return it in this exact JSON format: "
-        '{"type": "ready_to_implement", "text": "Here is the detailed implementation plan based on your choice...", "plan": "The actual plan details"} '
+        "When the user selects an option, you MUST write an incredibly rigorous, deeply detailed software architecture plan. It must include exact math-to-code translations, exact tensor dimensions, class/function signatures, and a strict step-by-step implementation guide. Return it in this exact JSON format: "
+        '{"type": "ready_to_implement", "text": "Here is the rigorous technical architecture based on your choice:", "plan": "The highly detailed Markdown plan goes here..."} '
         "Otherwise, for normal questions, just return plain Markdown text. Do NOT wrap normal text in JSON."
     )
     prompt = (
