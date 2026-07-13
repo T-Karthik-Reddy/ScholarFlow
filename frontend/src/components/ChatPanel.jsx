@@ -96,7 +96,8 @@ export default function ChatPanel({ paper, onOpenSettings, chatDraft, onChatDraf
     const parseStructuredResponse = (content) => {
         if (!content) return { obj: null, text: '' };
         try {
-            const jsonMatch = content.match(/\{[\s\S]*"type":\s*"(implementation_plan_choice|ready_to_implement)"[\s\S]*\}/);
+            // Use a non-greedy, precise regex to avoid matching `{` from LaTeX math
+            const jsonMatch = content.match(/\{\s*"type"\s*:\s*"(implementation_plan_choice|ready_to_implement)"[^}]*\}/);
             if (jsonMatch) {
                 const obj = JSON.parse(jsonMatch[0]);
                 if (obj && typeof obj === 'object' && obj.type) {
