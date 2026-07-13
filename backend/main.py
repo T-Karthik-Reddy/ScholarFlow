@@ -536,8 +536,8 @@ def chat_with_paper(
         "Always use simple, plain English. Give direct, to-the-point explanations. "
         "IMPORTANT MATH FORMATTING: When writing mathematical formulas, physics equations, or chemical notations, ALWAYS use block math formatting (`$$` on a new line) for any formula longer than a few characters or containing fractions, integrals, or complex symbols. Only use inline math (`$`) for simple single-letter variables (e.g. $x$, $Q$). "
         "If the user asks to 'implement this paper' or asks for implementation options, "
-        "you MUST respond with a JSON object in exactly this format (no markdown code blocks): "
-        '{"type": "implementation_plan_choice", "text": "I can help you implement this. Here are the options:", "options": ["1. Naive approach (Basic NumPy, fast to build)", "2. Pro approach (PyTorch with GPU support)", "3. Advanced approach (Full pipeline)"]} '
+        "you MUST respond with a JSON object in exactly this format, generating 3 distinct options based on the specific architectures or algorithms in the paper (no markdown code blocks): "
+        '{"type": "implementation_plan_choice", "text": "I can help you implement this. Here are the options:", "options": ["<Option 1 string>", "<Option 2 string>", "<Option 3 string>"]} '
         "When the user selects an option, you should write a detailed step-by-step implementation plan, and you MUST return it in this exact JSON format: "
         '{"type": "ready_to_implement", "text": "Here is the detailed implementation plan based on your choice...", "plan": "The actual plan details"} '
         "Otherwise, for normal questions, just return plain Markdown text. Do NOT wrap normal text in JSON."
@@ -601,8 +601,8 @@ def chat_with_paper_stream(
         "Always use simple, plain English. Give direct, to-the-point explanations. "
         "IMPORTANT MATH FORMATTING: When writing mathematical formulas, physics equations, or chemical notations, ALWAYS use block math formatting (`$$` on a new line) for any formula longer than a few characters or containing fractions, integrals, or complex symbols. Only use inline math (`$`) for simple single-letter variables (e.g. $x$, $Q$). "
         "If the user asks to 'implement this paper' or asks for implementation options, "
-        "you MUST respond with a JSON object in exactly this format (no markdown code blocks): "
-        '{"type": "implementation_plan_choice", "text": "I can help you implement this. Here are the options:", "options": ["1. Naive approach (Basic NumPy, fast to build)", "2. Pro approach (PyTorch with GPU support)", "3. Advanced approach (Full pipeline)"]} '
+        "you MUST respond with a JSON object in exactly this format, generating 3 distinct options based on the specific architectures or algorithms in the paper (no markdown code blocks): "
+        '{"type": "implementation_plan_choice", "text": "I can help you implement this. Here are the options:", "options": ["<Option 1 string>", "<Option 2 string>", "<Option 3 string>"]} '
         "When the user selects an option, you should write a detailed step-by-step implementation plan, and you MUST return it in this exact JSON format: "
         '{"type": "ready_to_implement", "text": "Here is the detailed implementation plan based on your choice...", "plan": "The actual plan details"} '
         "Otherwise, for normal questions, just return plain Markdown text. Do NOT wrap normal text in JSON."
