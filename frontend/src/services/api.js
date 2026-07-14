@@ -108,12 +108,21 @@ export const sendChat = async (paperId, message) =>
     (await client.post(`/papers/${paperId}/chat`, { message })).data;
 
 export const sendChatStream = async (paperId, message, onChunk) => {
-    const { getApiKey, getAuthToken, getChatModel } = require('./settings');
     const headers = { 'Content-Type': 'application/json' };
     const key = getApiKey();
     if (key) headers['X-Gemini-Key'] = key;
     const chatModel = getChatModel();
     if (chatModel) headers['X-Gemini-Chat-Model'] = chatModel;
+    
+    const temperature = getTemperature();
+    if (temperature !== null && temperature !== undefined) headers['X-Gemini-Temperature'] = temperature.toString();
+
+    const thinkingBudget = getThinkingBudget();
+    if (thinkingBudget > 0) headers['X-Gemini-Thinking-Budget'] = thinkingBudget.toString();
+    
+    const thinkingLevel = getThinkingLevel();
+    if (thinkingLevel && thinkingLevel !== 'NONE') headers['X-Gemini-Thinking-Level'] = thinkingLevel;
+
     const token = getAuthToken();
     if (token) headers['Authorization'] = `Bearer ${token}`;
 

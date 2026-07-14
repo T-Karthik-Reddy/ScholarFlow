@@ -624,6 +624,9 @@ def chat_with_paper_stream(
     db: Session = Depends(get_db),
     x_gemini_key: str | None = Header(default=None),
     x_gemini_chat_model: str | None = Header(default=None),
+    x_gemini_temperature: str | None = Header(default=None),
+    x_gemini_thinking_budget: str | None = Header(default=None),
+    x_gemini_thinking_level: str | None = Header(default=None),
     user: models.User = Depends(auth.get_current_user)
 ):
     paper = db.query(models.Paper).filter(models.Paper.id == paper_id, models.Paper.user_id == user.id).first()
